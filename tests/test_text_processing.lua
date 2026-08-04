@@ -130,6 +130,26 @@ local acceptanceCases = {
         expected = "BP 120/80 | P 70 | R 16 | SpO2 98%. Condition stable.",
     },
     {
+        name = "abbreviated saturation with spoken room air",
+        input = "BP 120/80 P 70 R 16 SpO2 98% on room air",
+        expected = "BP 120/80 | P 70 | R 16 | SpO2 98% RA",
+    },
+    {
+        name = "abbreviated saturation with spoken non-rebreather",
+        input = "BP 120/80 P 70 R 16 SpO2 98% on non-rebreather face mask",
+        expected = "BP 120/80 | P 70 | R 16 | SpO2 98% NRFM",
+    },
+    {
+        name = "abbreviated saturation with spoken nasal cannula flow",
+        input = "BP 120/80 P 70 R 16 SpO2 98% on 2 liters per minute nasal cannula",
+        expected = "BP 120/80 | P 70 | R 16 | SpO2 98% 2 L/min NC",
+    },
+    {
+        name = "abbreviated saturation with spoken nasal cannula",
+        input = "BP 120/80 P 70 R 16 SpO2 98% on nasal cannula",
+        expected = "BP 120/80 | P 70 | R 16 | SpO2 98% NC",
+    },
+    {
         name = "EtCO2 in ordinary prose does not gain a vital separator",
         input = "The EtCO2 35 mm Hg was recorded.",
         expected = "The EtCO2 35 mm Hg was recorded.",
@@ -369,6 +389,13 @@ local rejectedRefinements = {
         reason = "case-sensitive terms changed",
     },
     {
+        name = "target app context preserves title-case abbreviation",
+        source = "Na was 135 mmol/L.",
+        candidate = "na was 135 mmol/L.",
+        appBundleID = "com.apple.Terminal",
+        reason = "case-sensitive terms changed",
+    },
+    {
         name = "internal-uppercase clinical terms changed",
         source = "The arterial pH was measured after 2 mL.",
         candidate = "The arterial ph was measured after 2 ml.",
@@ -422,10 +449,16 @@ local rejectedRefinements = {
         candidate = "The offset was -5 units.",
         reason = "numeric facts changed",
     },
+    {
+        name = "dose moved between medications",
+        source = "Give naloxone 2 mg and epinephrine 1 mg.",
+        candidate = "Give naloxone mg and epinephrine 2 mg 1.",
+        reason = "numeric facts changed",
+    },
 }
 
 for _, case in ipairs(rejectedRefinements) do
-    local ok, reason = validate(case.source, case.candidate)
+    local ok, reason = validate(case.source, case.candidate, case.appBundleID)
     assert(not ok, case.name .. " should be rejected")
     assert(reason == case.reason, string.format(
         "%s returned wrong reason: expected %q, got %q",

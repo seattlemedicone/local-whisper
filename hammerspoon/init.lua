@@ -281,19 +281,58 @@ local function applyVitalSignsFormatting(text)
     -- Normalize an already abbreviated vital-sign sequence as well. This lets
     -- the deterministic formatter enforce the schema even when Whisper (or a
     -- model response) has already abbreviated the field names.
-    local abbreviatedVitalPattern =
+    local abbreviatedVitalPrefix =
         "[Bb][Pp][ \t]+(%d+)[ \t]*/[ \t]*(%d+)[ \t]*[,|]?[ \t]+" ..
         "[Pp][ \t]+(%d+)[ \t]*[,|]?[ \t]+" ..
         "[Rr][ \t]+(%d+)[ \t]*[,|]?[ \t]+" ..
         "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?"
-    text = text:gsub(abbreviatedVitalPattern, function(systolic, diastolic, pulse, respirations, saturation)
+    local function formatAbbreviatedVitals(systolic, diastolic, pulse, respirations, saturation, modality)
         return string.format(
             "BP %s/%s | P %s | R %s | ",
             systolic,
             diastolic,
             pulse,
             respirations
-        ) .. formatSaturation(saturation)
+        ) .. formatSaturation(saturation, modality)
+    end
+    text = text:gsub(
+        abbreviatedVitalPrefix .. "[ \t]+[Oo]n[ \t]+[Nn]on%-?[ \t]*[Rr]ebreather[ \t]+face[ \t]+mask",
+        function(systolic, diastolic, pulse, respirations, saturation)
+            return formatAbbreviatedVitals(systolic, diastolic, pulse, respirations, saturation, "NRFM")
+        end
+    )
+    text = text:gsub(
+        abbreviatedVitalPrefix .. "[ \t]+[Oo]n[ \t]+(%d+)[ \t]+[Ll]iters?[ \t]+per[ \t]+minute[ \t]+[Nn]asal[ \t]+cannula",
+        function(systolic, diastolic, pulse, respirations, saturation, flow)
+            return formatAbbreviatedVitals(systolic, diastolic, pulse, respirations, saturation, flow .. " L/min NC")
+        end
+    )
+    text = text:gsub(
+        abbreviatedVitalPrefix .. "[ \t]+[Oo]n[ \t]+(%d+)[ \t]*[Ll]/[Mm][Ii][Nn][ \t]+[Nn]asal[ \t]+cannula",
+        function(systolic, diastolic, pulse, respirations, saturation, flow)
+            return formatAbbreviatedVitals(systolic, diastolic, pulse, respirations, saturation, flow .. " L/min NC")
+        end
+    )
+    text = text:gsub(
+        abbreviatedVitalPrefix .. "[ \t]+[Oo]n[ \t]+[Nn]asal[ \t]+cannula",
+        function(systolic, diastolic, pulse, respirations, saturation)
+            return formatAbbreviatedVitals(systolic, diastolic, pulse, respirations, saturation, "NC")
+        end
+    )
+    text = text:gsub(
+        abbreviatedVitalPrefix .. "[ \t]+[Oo]n[ \t]+[Rr]oom[ \t]+air",
+        function(systolic, diastolic, pulse, respirations, saturation)
+            return formatAbbreviatedVitals(systolic, diastolic, pulse, respirations, saturation, "RA")
+        end
+    )
+    text = text:gsub(
+        abbreviatedVitalPrefix .. "[ \t]+[Rr]oom[ \t]+air",
+        function(systolic, diastolic, pulse, respirations, saturation)
+            return formatAbbreviatedVitals(systolic, diastolic, pulse, respirations, saturation, "RA")
+        end
+    )
+    text = text:gsub(abbreviatedVitalPrefix, function(systolic, diastolic, pulse, respirations, saturation)
+        return formatAbbreviatedVitals(systolic, diastolic, pulse, respirations, saturation)
     end)
 
     local vitalPattern =
@@ -510,25 +549,40 @@ local function postProcess(text, appBundleID)
     return text
 end
 
+local removeClearlyDelimitedFillerPhrases
+
 local function extractNumericFacts(text)
     local facts = {}
+    local normalized = removeClearlyDelimitedFillerPhrases(text)
     local i = 1
-    while i <= #text do
-        local char = text:sub(i, i)
+    local wordIndex = 0
+    while i <= #normalized do
+        local char = normalized:sub(i, i)
         if char:match("%d") then
             local startIndex = i
             i = i + 1
-            while i <= #text and text:sub(i, i):match("[%d%.,]") do
+            while i <= #normalized and normalized:sub(i, i):match("[%d%.,]") do
                 i = i + 1
             end
-            local value = text:sub(startIndex, i - 1):gsub("[%,%.]+$", "")
-            local prior = text:sub(startIndex - 1, startIndex - 1)
-            local beforePrior = text:sub(startIndex - 2, startIndex - 2)
+            local value = normalized:sub(startIndex, i - 1):gsub("[%,%.]+$", "")
+            local prior = normalized:sub(startIndex - 1, startIndex - 1)
+            local beforePrior = normalized:sub(startIndex - 2, startIndex - 2)
             local leadingDecimal = (prior == "." or prior == ",") and not beforePrior:match("%d")
             if leadingDecimal then value = "0" .. prior .. value end
             local sign = leadingDecimal and beforePrior or prior
             if sign == "+" or sign == "-" then value = sign .. value end
-            table.insert(facts, value)
+            table.insert(facts, tostring(wordIndex) .. ":" .. value)
+        elseif char:match("%a") then
+            wordIndex = wordIndex + 1
+            i = i + 1
+            while i <= #normalized do
+                local nextChar = normalized:sub(i, i)
+                if nextChar:match("[%a']") or normalized:byte(i) >= 128 then
+                    i = i + 1
+                else
+                    break
+                end
+            end
         else
             i = i + 1
         end
@@ -551,7 +605,7 @@ local function removeAllowedFillerTokens(tokens)
     return filtered
 end
 
-local function removeClearlyDelimitedFillerPhrases(text)
+removeClearlyDelimitedFillerPhrases = function(text)
     local normalized = text
     local phrases = {"[Yy]ou[ \t]+[Kk]now", "[Ii][ \t]+[Mm]ean"}
     for _, phrase in ipairs(phrases) do
@@ -686,13 +740,13 @@ end
 
 -- Accept only punctuation/case/whitespace/filler changes, plus transformations
 -- that our deterministic formatter canonicalizes identically on both sides.
-local function validateRefinement(source, candidate)
+local function validateRefinement(source, candidate, appBundleID)
     if type(candidate) ~= "string" or candidate:match("^%s*$") then
         return false, "empty response"
     end
 
-    local canonicalSource = postProcess(source)
-    local canonicalCandidate = postProcess(candidate)
+    local canonicalSource = postProcess(source, appBundleID)
+    local canonicalCandidate = postProcess(candidate, appBundleID)
 
     if not sequencesMatch(
         extractNumericFacts(canonicalSource),
@@ -738,7 +792,7 @@ end
 
 local function finalizeRefinement(source, candidate, appBundleID)
     if candidate ~= nil then
-        local accepted, reason = validateRefinement(source, candidate)
+        local accepted, reason = validateRefinement(source, candidate, appBundleID)
         if accepted then
             return postProcess(candidate, appBundleID), true, reason
         end
