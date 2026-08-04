@@ -261,6 +261,18 @@ local NO_CAPITALIZE_APPS = {
 
 -- Canonicalize complete spoken vital-sign sequences after model cleanup.
 local function applyVitalSignsFormatting(text)
+    local saturationValue = "%d+[%.,]?%d*"
+    local function formatSaturation(value, modality)
+        local punctuation = ""
+        local last = value:sub(-1)
+        if (last == "." or last == ",") and value:sub(1, -2):match("%d$") then
+            value = value:sub(1, -2)
+            punctuation = last
+        end
+        local suffix = modality and (" " .. modality) or ""
+        return "SpO2 " .. value .. "%" .. suffix .. punctuation
+    end
+
     -- Whisper often inserts natural filler words into dictated vital signs.
     text = text:gsub("([Bb]lood[ \t]+pressure)[ \t]+[Oo]f[ \t]+(%d)", "%1 %2")
     text = text:gsub("([Rr]espirations?)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
@@ -273,7 +285,7 @@ local function applyVitalSignsFormatting(text)
         "[Bb][Pp][ \t]+(%d+)[ \t]*/[ \t]*(%d+)[ \t]*[,|]?[ \t]+" ..
         "[Pp][ \t]+(%d+)[ \t]*[,|]?[ \t]+" ..
         "[Rr][ \t]+(%d+)[ \t]*[,|]?[ \t]+" ..
-        "[Ss][Pp][Oo]2[ \t]+(%d+)%%?"
+        "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?"
     text = text:gsub(abbreviatedVitalPattern, function(systolic, diastolic, pulse, respirations, saturation)
         return string.format(
             "BP %s/%s | P %s | R %s | SpO2 %s%%",
@@ -300,50 +312,54 @@ local function applyVitalSignsFormatting(text)
     end)
 
     local nrfmPattern =
-        "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
+        "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
         "[Nn]on%-?[ \t]*[Rr]ebreather[ \t]+face[ \t]+mask"
-    text = text:gsub(nrfmPattern, "SpO2 %1%% NRFM")
+    text = text:gsub(nrfmPattern, function(value) return formatSaturation(value, "NRFM") end)
 
     local nasalCannulaLpmPattern =
-        "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
+        "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
         "(%d+)[ \t]+[Ll]iters?[ \t]+per[ \t]+minute[ \t]+" ..
         "[Nn]asal[ \t]+cannula"
-    text = text:gsub(nasalCannulaLpmPattern, "SpO2 %1%% %2 L/min NC")
+    text = text:gsub(nasalCannulaLpmPattern, function(value, flow)
+        return formatSaturation(value, flow .. " L/min NC")
+    end)
 
     local nasalCannulaShortPattern =
-        "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
+        "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
         "(%d+)[ \t]*[Ll]/[Mm][Ii][Nn][ \t]+[Nn]asal[ \t]+cannula"
-    text = text:gsub(nasalCannulaShortPattern, "SpO2 %1%% %2 L/min NC")
+    text = text:gsub(nasalCannulaShortPattern, function(value, flow)
+        return formatSaturation(value, flow .. " L/min NC")
+    end)
 
     local nasalCannulaPattern =
-        "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
+        "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
         "[Nn]asal[ \t]+cannula"
-    text = text:gsub(nasalCannulaPattern, "SpO2 %1%% NC")
+    text = text:gsub(nasalCannulaPattern, function(value) return formatSaturation(value, "NC") end)
 
     local roomAirPattern =
-        "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
+        "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
         "[Rr]oom[ \t]+air"
-    text = text:gsub(roomAirPattern, "SpO2 %1%% RA")
+    text = text:gsub(roomAirPattern, function(value) return formatSaturation(value, "RA") end)
 
     local roomAirWithoutOnPattern =
-        "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+" ..
+        "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+" ..
         "[Rr]oom[ \t]+air"
-    text = text:gsub(roomAirWithoutOnPattern, "SpO2 %1%% RA")
+    text = text:gsub(roomAirWithoutOnPattern, function(value) return formatSaturation(value, "RA") end)
 
     -- Delivery method is optional. Run this fallback after the specific
     -- modality patterns so a complete saturation value is still canonical.
     local saturationOnlyPattern =
-        "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?"
-    text = text:gsub(saturationOnlyPattern, "SpO2 %1%%")
+        "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?"
+    text = text:gsub(saturationOnlyPattern, function(value) return formatSaturation(value) end)
 
     -- Add the separator only when a recognized oxygen field immediately
     -- follows respirations. Sentence punctuation remains untouched otherwise.
     local spO2Fields = {
-        "SpO2[ \t]+%d+%%[ \t]+%d+[ \t]+L/min[ \t]+NC",
-        "SpO2[ \t]+%d+%%[ \t]+RA",
-        "SpO2[ \t]+%d+%%[ \t]+NRFM",
-        "SpO2[ \t]+%d+%%[ \t]+NC",
-        "SpO2[ \t]+%d+%%",
+        "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+%d+[ \t]+L/min[ \t]+NC",
+        "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+RA",
+        "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+NRFM",
+        "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+NC",
+        "SpO2[ \t]+" .. saturationValue .. "%%",
     }
     for _, nextField in ipairs(spO2Fields) do
         text = text:gsub(
@@ -410,11 +426,11 @@ local function applyVitalSignsFormatting(text)
     )
     local etco2Field = "EtCO2[ \t]+" .. etco2Value .. "[ \t]+mm[ \t]+Hg"
     local adjacentSpO2Fields = {
-        "SpO2[ \t]+%d+%%[ \t]+%d+[ \t]+L/min[ \t]+NC",
-        "SpO2[ \t]+%d+%%[ \t]+RA",
-        "SpO2[ \t]+%d+%%[ \t]+NRFM",
-        "SpO2[ \t]+%d+%%[ \t]+NC",
-        "SpO2[ \t]+%d+%%",
+        "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+%d+[ \t]+L/min[ \t]+NC",
+        "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+RA",
+        "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+NRFM",
+        "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+NC",
+        "SpO2[ \t]+" .. saturationValue .. "%%",
     }
     for _, priorField in ipairs(adjacentSpO2Fields) do
         text = text:gsub(
@@ -478,14 +494,18 @@ local function postProcess(text, appBundleID)
     text = text:gsub("^[ \t]+", ""):gsub("[ \t]+$", "")
     -- Auto-capitalize sentence and paragraph starts (skip terminals/code editors)
     if not (appBundleID and NO_CAPITALIZE_APPS[appBundleID]) then
-        text = text:gsub("^([ \t\n]*)(%l)", function(prefix, char)
-            return prefix .. char:upper()
+        local function capitalizeWord(prefix, word)
+            if word:sub(2):match("[A-Z]") then return prefix .. word end
+            return prefix .. word:sub(1, 1):upper() .. word:sub(2)
+        end
+        text = text:gsub("^([ \t\n]*)(%l[%a']*)", function(prefix, word)
+            return capitalizeWord(prefix, word)
         end, 1)
-        text = text:gsub("([%.%!%?][ \t]+)(%l)", function(prefix, char)
-            return prefix .. char:upper()
+        text = text:gsub("([%.%!%?][ \t]+)(%l[%a']*)", function(prefix, word)
+            return capitalizeWord(prefix, word)
         end)
-        text = text:gsub("(\n+)(%l)", function(prefix, char)
-            return prefix .. char:upper()
+        text = text:gsub("(\n+)(%l[%a']*)", function(prefix, word)
+            return capitalizeWord(prefix, word)
         end)
     end
     return text
@@ -588,6 +608,7 @@ end
 -- abbreviations; uncertain responses fall back to source.
 local function extractCaseSensitiveTokens(text)
     local tokens = {}
+    local tokenIndex = 0
     local ordinaryTwoLetterWords = {
         Am = true, An = true, As = true, At = true, Be = true, By = true,
         Do = true, Go = true, He = true, If = true, In = true, Is = true,
@@ -597,13 +618,14 @@ local function extractCaseSensitiveTokens(text)
     }
     local normalized = removeClearlyDelimitedFillerPhrases(text)
     for token in normalized:gmatch("[%a][%a']*") do
+        tokenIndex = tokenIndex + 1
         local shortTitleCase = token:match("^[A-Z][a-z]$")
             and not ordinaryTwoLetterWords[token]
         if token:match("^[A-Z]+$")
             or token:sub(2):match("[A-Z]")
             or shortTitleCase
         then
-            table.insert(tokens, token)
+            table.insert(tokens, tostring(tokenIndex) .. ":" .. token)
         end
     end
     return tokens

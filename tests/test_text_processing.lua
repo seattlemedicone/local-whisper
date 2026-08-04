@@ -45,6 +45,16 @@ local acceptanceCases = {
         expected = "SpO2 91%",
     },
     {
+        name = "decimal oxygen saturation on room air",
+        input = "oxygen saturation 98.5% on room air",
+        expected = "SpO2 98.5% RA",
+    },
+    {
+        name = "decimal-comma oxygen saturation without modality",
+        input = "oxygen saturation 98,5%",
+        expected = "SpO2 98,5%",
+    },
+    {
         name = "partial vital signs do not append a dangling separator",
         input = "blood pressure 120 over 80 pulse 70 respirations 16. Condition stable.",
         expected = "BP 120/80 | P 70 | R 16. Condition stable.",
@@ -158,6 +168,16 @@ local acceptanceCases = {
         name = "clock time and missing sentence space",
         input = "The ETA is 15: 45.The ETA is 1545.",
         expected = "The ETA is 15:45. The ETA is 1545.",
+    },
+    {
+        name = "mixed-case term preserved at sentence boundary",
+        input = "Acidosis noted. pH was 7.20.",
+        expected = "Acidosis noted. pH was 7.20.",
+    },
+    {
+        name = "mixed-case unit preserved at paragraph boundary",
+        input = "mL was documented.\nmL remained unchanged.",
+        expected = "mL was documented.\nmL remained unchanged.",
     },
     {
         name = "leading paragraph command",
@@ -335,6 +355,12 @@ local rejectedRefinements = {
         name = "case-sensitive abbreviation changed",
         source = "Send the patient to US for further imaging.",
         candidate = "Send the patient to us for further imaging.",
+        reason = "case-sensitive terms changed",
+    },
+    {
+        name = "case-sensitive abbreviation moved between repeated words",
+        source = "The US exam was discussed with us.",
+        candidate = "The us exam was discussed with US.",
         reason = "case-sensitive terms changed",
     },
     {
