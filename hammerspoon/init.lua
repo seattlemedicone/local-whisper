@@ -37,22 +37,14 @@ local function getAvailableModels()
 end
 
 -- Get/set active model
-local function getModelName(language)
+local function getModelName(_language)
     local function modelExists(name)
         return hs.fs.attributes(MODELS_DIR .. "/ggml-" .. name .. ".bin") ~= nil
     end
     local saved = ""
     local f = io.open(MODEL_FILE, "r")
     if f then saved = f:read("*a"):gsub("%s+", ""); f:close() end
-    local selected = modelExists(saved) and saved or "base.en"
-
-    -- English-only Whisper models cannot transcribe Portuguese or auto-detect
-    -- languages. Prefer the corresponding multilingual model when available.
-    if language and language ~= "en" and selected:match("%.en$") then
-        local multilingual = selected:gsub("%.en$", "")
-        if modelExists(multilingual) then return multilingual end
-    end
-    return selected
+    return modelExists(saved) and saved or "base.en"
 end
 
 local function getModelPath(language)
@@ -74,7 +66,6 @@ local TRIGGER_KEY = "rightCmd"
 -- User preference files (all in CONFIG_DIR)
 local LANG_FILE = CONFIG_DIR .. "/lang"
 local OUTPUT_FILE = CONFIG_DIR .. "/output"
-local PREFERRED_LANGS_FILE = CONFIG_DIR .. "/preferred_langs"
 local ENTER_FILE = CONFIG_DIR .. "/enter"
 local PROMPT_FILE = CONFIG_DIR .. "/prompt"
 local RECENT_FILE = CONFIG_DIR .. "/recent.json"
@@ -198,8 +189,7 @@ local function writeFile(path, content)
 end
 
 local function getLang()
-    local lang = readFile(LANG_FILE):gsub("%s+", "")
-    if lang == "en" or lang == "pt" or lang == "auto" then return lang end
+    -- SeattleMedicOne deployment is intentionally English-only.
     return "en"
 end
 
@@ -210,14 +200,7 @@ local function getOutputMode()
 end
 
 local function getPreferredLangs()
-    local content = readFile(PREFERRED_LANGS_FILE):gsub("%s+$", "")
-    if content == "" then return {"en", "pt"} end
-    local langs = {}
-    for lang in content:gmatch("[^,]+") do
-        lang = lang:match("^%s*(.-)%s*$")
-        if lang ~= "" then table.insert(langs, lang) end
-    end
-    return #langs > 0 and langs or {"en", "pt"}
+    return {"en"}
 end
 
 local function getEnterMode()
@@ -227,6 +210,19 @@ end
 
 local function shellQuote(text)
     return "'" .. tostring(text):gsub("'", "'\\''") .. "'"
+end
+
+-- Synchronous checks used only by install.sh/setup.sh through the local
+-- Hammerspoon IPC socket. They prove that the Hammerspoon process—not merely
+-- Terminal—can launch ffmpeg and record from the configured input device.
+WhisperInstallationDiagnostics = WhisperInstallationDiagnostics or {}
+WhisperInstallationDiagnostics.microphone = function()
+    if not hs.fs.attributes(FFMPEG) then return false end
+    local command = shellQuote(FFMPEG) ..
+        " -nostdin -v error -f avfoundation -i " .. shellQuote(AUDIO_DEVICE) ..
+        " -t 0.15 -f null - >/dev/null 2>&1"
+    local ok = os.execute(command)
+    return ok == true or ok == 0
 end
 
 local function expandPath(path)
@@ -686,10 +682,8 @@ end
 
 -- Cycle helpers
 local function cycleLang()
-    local cycle = { en = "pt", pt = "auto", auto = "en" }
-    local next = cycle[getLang()] or "en"
-    writeFile(LANG_FILE, next)
-    return next
+    writeFile(LANG_FILE, "en")
+    return "en"
 end
 
 local function cycleModel()
@@ -1302,7 +1296,7 @@ local function buildMenuBarMenu()
     local langDisplay = getLang():upper()
     table.insert(items, {
         title = "Language: " .. langDisplay,
-        fn = function() cycleLang(); updateMenuBar() end,
+        disabled = true,
     })
 
     -- Model
@@ -2492,12 +2486,12 @@ sliceAndTranscribeWindow = function(idx, startSec, endSec)
     -- which was hanging on the second window — whisper exited cleanly but the
     -- inner hs.task callback never fired. With one task we get one reliable
     -- exit callback; whisper output is read from the file, not piped stdout.
-    local model = getModelPath("auto")
+    local model = getModelPath("en")
     local function shquote(s) return "'" .. s:gsub("'", "'\\''") .. "'" end
     local cmd = string.format(
         "set -e\n" ..
         "%s -y -hide_banner -loglevel error -f s16le -ar 16000 -ac 1 -ss %.3f -i %s -t %.3f %s\n" ..
-        "%s -m %s -f %s -otxt -of %s --no-prints -t 4 -l auto >/dev/null 2>&1\n",
+        "%s -m %s -f %s -otxt -of %s --no-prints -t 4 -l en >/dev/null 2>&1\n",
         shquote(FFMPEG), startSec, shquote(meetingPcmPath), endSec - startSec, shquote(windowPath),
         shquote(WHISPER_BIN), shquote(model), shquote(windowPath), shquote(outPrefix)
     )
@@ -2828,11 +2822,6 @@ hs.shutdownCallback = function()
             runAudioHelper("set-default", meetingPriorOutputUID)
         end
     end
-end
-
--- Create default preferred langs file if it doesn't exist
-if readFile(PREFERRED_LANGS_FILE) == "" then
-    writeFile(PREFERRED_LANGS_FILE, "en,pt")
 end
 
 -- Create menu bar icon

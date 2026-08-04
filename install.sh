@@ -23,8 +23,310 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # ─── Configurable paths ─────────────────────────────────────────────────────
 WHISPER_CPP_DIR="$HOME/whisper.cpp"
 WHISPER_MODEL="base.en"
-WHISPER_MULTILINGUAL_MODEL="base"
+WHISPER_PREVIEW_MODEL="tiny.en"
+WHISPER_MODEL_MIN_BYTES=100000000
+WHISPER_PREVIEW_MODEL_MIN_BYTES=50000000
+OLLAMA_MODEL="gemma4:e2b"
 HAMMERSPOON_DIR="$HOME/.hammerspoon"
+CONFIG_DIR="$HOME/.local-whisper"
+
+read_lua_string_setting() {
+    local file="$1"
+    local setting="$2"
+    grep -m1 "local ${setting} =" "$file" 2>/dev/null | sed 's/.*"\(.*\)".*/\1/' || true
+}
+
+read_compact_file() {
+    local file="$1"
+    [[ -f "$file" ]] || return 0
+    tr -d '[:space:]' < "$file"
+}
+
+find_hs_bin() {
+    local candidate
+    for candidate in \
+        "/opt/homebrew/bin/hs" \
+        "/usr/local/bin/hs" \
+        "/Applications/Hammerspoon.app/Contents/Frameworks/hs/hs" \
+        "$HOME/Applications/Hammerspoon.app/Contents/Frameworks/hs/hs"; do
+        if [[ -x "$candidate" ]]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+model_file_meets_minimum_size() {
+    local file="$1"
+    local minimum_bytes="$2"
+    local actual_bytes=""
+    [[ -f "$file" ]] || return 1
+    actual_bytes="$(stat -f '%z' "$file" 2>/dev/null || true)"
+    [[ "$actual_bytes" =~ ^[0-9]+$ ]] && (( actual_bytes >= minimum_bytes ))
+}
+
+verify_whisper_model() {
+    local file="$1"
+    local minimum_bytes="$2"
+    local sample="$WHISPER_CPP_DIR/samples/jfk.wav"
+    model_file_meets_minimum_size "$file" "$minimum_bytes" &&
+        [[ -x "$WHISPER_CPP_DIR/build/bin/whisper-cli" ]] &&
+        [[ -f "$sample" ]] &&
+        "$WHISPER_CPP_DIR/build/bin/whisper-cli" \
+            -ng -m "$file" -f "$sample" -l en -nt --no-prints \
+            >/dev/null 2>&1
+}
+
+move_to_trash() {
+    local target="$1"
+    local label="$2"
+    local destination="$HOME/.Trash/${label}-$(date +%Y%m%d-%H%M%S)-$$"
+    mkdir -p "$HOME/.Trash"
+    mv "$target" "$destination"
+    warn "Moved the unusable download to $destination"
+}
+
+download_model() {
+    local model="$1"
+    local purpose="$2"
+    local approximate_size="$3"
+    local minimum_bytes="$4"
+    local model_file="$WHISPER_CPP_DIR/models/ggml-${model}.bin"
+    local temporary_dir=""
+    local temporary_file=""
+
+    if verify_whisper_model "$model_file" "$minimum_bytes"; then
+        ok "Model already downloaded and verified: ggml-${model}.bin"
+        return 0
+    fi
+
+    if [[ -e "$model_file" ]]; then
+        warn "Existing ggml-${model}.bin is incomplete or unreadable"
+        move_to_trash "$model_file" "ggml-${model}.bin.invalid"
+    fi
+
+    temporary_dir="$(mktemp -d "$WHISPER_CPP_DIR/models/.local-whisper-download.XXXXXX")"
+    temporary_file="$temporary_dir/ggml-${model}.bin"
+    info "Downloading ggml-${model}.bin for ${purpose} (~${approximate_size})..."
+    if ! (cd "$WHISPER_CPP_DIR" && bash ./models/download-ggml-model.sh "$model" "$temporary_dir"); then
+        error "Model download failed: ${model}"
+        move_to_trash "$temporary_dir" "local-whisper-${model}-failed"
+        return 1
+    fi
+
+    if ! verify_whisper_model "$temporary_file" "$minimum_bytes"; then
+        error "Downloaded model failed its CPU-only load test: ${model}"
+        move_to_trash "$temporary_dir" "local-whisper-${model}-invalid"
+        return 1
+    fi
+
+    mv "$temporary_file" "$model_file"
+    rmdir "$temporary_dir"
+    ok "Model downloaded and verified: ggml-${model}.bin"
+}
+
+ollama_inference_ready() {
+    curl -fsS --connect-timeout 3 --max-time 180 \
+        -H 'Content-Type: application/json' \
+        --data-binary "{\"model\":\"${OLLAMA_MODEL}\",\"prompt\":\"Reply OK.\",\"stream\":false,\"think\":false,\"keep_alive\":\"5m\",\"options\":{\"temperature\":0,\"num_predict\":1}}" \
+        http://127.0.0.1:11434/api/generate 2>/dev/null |
+        grep -Fq '"done":true'
+}
+
+restore_hammerspoon_choices() {
+    local file="$1"
+    local trigger_key="$2"
+    local audio_device="$3"
+
+    if [[ "$trigger_key" =~ ^(rightCmd|rightAlt|rightCtrl)$ ]]; then
+        sed -i '' "s/local TRIGGER_KEY = \".*\"/local TRIGGER_KEY = \"${trigger_key}\"/" "$file"
+    fi
+    if [[ "$audio_device" == ":default" ]] || [[ "$audio_device" =~ ^:[0-9]+$ ]]; then
+        sed -i '' "s/local AUDIO_DEVICE = \".*\"/local AUDIO_DEVICE = \"${audio_device}\"/" "$file"
+    fi
+}
+
+install_hammerspoon_config() {
+    local source_file="$1"
+    local target_file="$2"
+    local prior_trigger=""
+    local prior_audio=""
+
+    if [[ -f "$target_file" ]] && grep -q "local-whisper" "$target_file"; then
+        prior_trigger="$(read_lua_string_setting "$target_file" "TRIGGER_KEY")"
+        prior_audio="$(read_lua_string_setting "$target_file" "AUDIO_DEVICE")"
+        cp "$source_file" "$target_file"
+        restore_hammerspoon_choices "$target_file" "$prior_trigger" "$prior_audio"
+        ok "Hammerspoon config updated; trigger key and microphone preserved"
+    elif [[ -f "$target_file" ]]; then
+        warn "Existing init.lua found — backing up to init.lua.backup"
+        cp "$target_file" "${target_file}.backup"
+        cp "$source_file" "$target_file"
+        ok "Hammerspoon config installed (backup saved)"
+    else
+        cp "$source_file" "$target_file"
+        ok "Hammerspoon config installed"
+    fi
+}
+
+is_guarded_hammerspoon_config() {
+    local file="$1"
+    [[ -f "$file" ]] &&
+        grep -Fq 'local-whisper' "$file" &&
+        grep -Fq 'REFINE_DEFAULT_MODEL = "gemma4:e2b"' "$file" &&
+        grep -Fq 'local function validateRefinement' "$file" &&
+        grep -Fq 'WhisperTextProcessing.validateRefinement = validateRefinement' "$file"
+}
+
+verify_installation() {
+    local failed=false
+    local ollama_bin=""
+    local hs_bin=""
+    local ffmpeg_bin=""
+
+    echo -e "${BOLD}Verifying local-whisper installation${NC}"
+
+    if [[ -x "$WHISPER_CPP_DIR/build/bin/whisper-cli" ]]; then
+        ok "whisper-cli is installed"
+    else
+        error "whisper-cli is missing"
+        failed=true
+    fi
+
+    if verify_whisper_model "$WHISPER_CPP_DIR/models/ggml-${WHISPER_MODEL}.bin" "$WHISPER_MODEL_MIN_BYTES"; then
+        ok "Whisper model loaded successfully: ${WHISPER_MODEL}"
+    else
+        error "Whisper model is missing, incomplete, or unreadable: ${WHISPER_MODEL}"
+        failed=true
+    fi
+    if verify_whisper_model "$WHISPER_CPP_DIR/models/ggml-${WHISPER_PREVIEW_MODEL}.bin" "$WHISPER_PREVIEW_MODEL_MIN_BYTES"; then
+        ok "Whisper model loaded successfully: ${WHISPER_PREVIEW_MODEL}"
+    else
+        error "Whisper model is missing, incomplete, or unreadable: ${WHISPER_PREVIEW_MODEL}"
+        failed=true
+    fi
+
+    if [[ -x "/opt/homebrew/bin/ffmpeg" ]]; then
+        ffmpeg_bin="/opt/homebrew/bin/ffmpeg"
+    elif [[ -x "/usr/local/bin/ffmpeg" ]]; then
+        ffmpeg_bin="/usr/local/bin/ffmpeg"
+    fi
+    if [[ -n "$ffmpeg_bin" ]]; then
+        ok "ffmpeg is installed"
+    else
+        error "ffmpeg is missing"
+        failed=true
+    fi
+
+    if [[ -d "/Applications/Hammerspoon.app" || -d "$HOME/Applications/Hammerspoon.app" ]]; then
+        ok "Hammerspoon is installed"
+    else
+        error "Hammerspoon application is missing"
+        failed=true
+    fi
+
+    if is_guarded_hammerspoon_config "$HAMMERSPOON_DIR/init.lua"; then
+        ok "Guarded Hammerspoon configuration is installed"
+    else
+        error "Guarded Hammerspoon configuration is missing or stale"
+        failed=true
+    fi
+
+    hs_bin="$(find_hs_bin || true)"
+    if [[ -n "$hs_bin" ]] && pgrep -q Hammerspoon &&
+       "$hs_bin" -n -t 5 -c 'print(WhisperTextProcessing ~= nil and WhisperTextProcessing.validateRefinement ~= nil)' 2>/dev/null | grep -Fxq "true"; then
+        ok "Guarded Hammerspoon runtime is loaded"
+    else
+        error "Guarded Hammerspoon runtime is not loaded"
+        failed=true
+    fi
+
+    if [[ -n "$hs_bin" ]] &&
+       "$hs_bin" -n -t 5 -c 'print(hs.accessibilityState())' 2>/dev/null | grep -Fxq "true"; then
+        ok "Hammerspoon Accessibility permission is granted"
+    else
+        error "Hammerspoon Accessibility permission is missing"
+        failed=true
+    fi
+
+    if [[ -n "$hs_bin" ]] &&
+       "$hs_bin" -n -t 10 -c 'print(WhisperInstallationDiagnostics ~= nil and WhisperInstallationDiagnostics.microphone())' 2>/dev/null | grep -Fxq "true"; then
+        ok "Hammerspoon can record from the configured microphone"
+    else
+        error "Hammerspoon cannot record from the configured microphone"
+        failed=true
+    fi
+
+    if [[ "$(read_compact_file "$CONFIG_DIR/lang")" == "en" ]] &&
+       [[ "$(read_compact_file "$CONFIG_DIR/model")" == "$WHISPER_MODEL" ]]; then
+        ok "English Whisper configuration is active"
+    else
+        error "English Whisper configuration is incomplete"
+        failed=true
+    fi
+
+    if command -v ollama &>/dev/null; then
+        ollama_bin="$(command -v ollama)"
+        ok "Ollama is installed"
+    else
+        error "Ollama is missing"
+        failed=true
+    fi
+
+    if curl -fsS --connect-timeout 2 --max-time 5 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
+        ok "Ollama service is running"
+    else
+        error "Ollama service is not reachable"
+        failed=true
+    fi
+
+    if command -v brew >/dev/null 2>&1 && brew services list 2>/dev/null |
+       awk '$1 == "ollama" && $2 == "started" {found=1} END {exit !found}'; then
+        ok "Ollama is registered to start automatically at login"
+    else
+        error "Ollama is not registered as a running login service"
+        failed=true
+    fi
+
+    if [[ -n "$ollama_bin" ]] && "$ollama_bin" list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -Fxq "$OLLAMA_MODEL"; then
+        ok "Gemma model is installed: $OLLAMA_MODEL"
+    else
+        error "Gemma model is missing: $OLLAMA_MODEL"
+        failed=true
+    fi
+
+    if ollama_inference_ready; then
+        ok "Gemma completed a local test inference"
+    else
+        error "Gemma is installed but could not complete a local test inference"
+        failed=true
+    fi
+
+    if [[ "$(read_compact_file "$CONFIG_DIR/refine")" == "on" ]] &&
+       [[ "$(read_compact_file "$CONFIG_DIR/refine_model")" == "$OLLAMA_MODEL" ]]; then
+        ok "Guarded Gemma refinement is enabled"
+    else
+        error "Guarded Gemma refinement is not enabled"
+        failed=true
+    fi
+
+    if [[ "$failed" == true ]]; then
+        error "Verification failed. Run ./install.sh to repair the installation."
+        return 1
+    fi
+
+    ok "Installation verified"
+}
+
+if [[ "${1:-}" == "--verify" ]]; then
+    verify_installation
+    exit $?
+fi
+
+if [[ "${LOCAL_WHISPER_SOURCE_ONLY:-}" == "1" ]]; then
+    return 0 2>/dev/null || exit 0
+fi
 
 # ─── Preflight ───────────────────────────────────────────────────────────────
 echo ""
@@ -55,9 +357,9 @@ ok "Homebrew found"
 
 # ─── Step 1: Brew dependencies ──────────────────────────────────────────────
 echo ""
-info "Step 1/6: Installing dependencies via Homebrew..."
+info "Step 1/7: Installing dependencies via Homebrew..."
 
-BREW_FORMULAE=(ffmpeg cmake git)
+BREW_FORMULAE=(ffmpeg cmake git ollama)
 for formula in "${BREW_FORMULAE[@]}"; do
     if brew list "$formula" &>/dev/null; then
         ok "$formula already installed"
@@ -78,7 +380,7 @@ fi
 
 # ─── Step 2: Build whisper.cpp ───────────────────────────────────────────────
 echo ""
-info "Step 2/6: Building whisper.cpp..."
+info "Step 2/7: Building whisper.cpp..."
 
 if [[ -x "$WHISPER_CPP_DIR/build/bin/whisper-cli" ]]; then
     ok "whisper-cli already built at $WHISPER_CPP_DIR/build/bin/whisper-cli"
@@ -106,76 +408,27 @@ fi
 
 # ─── Step 3: Download models ────────────────────────────────────────────────
 echo ""
-info "Step 3/6: Downloading whisper models..."
+info "Step 3/7: Downloading English Whisper models..."
 
-download_model() {
-    local model="$1"
-    local purpose="$2"
-    local model_file="$WHISPER_CPP_DIR/models/ggml-${model}.bin"
-    if [[ -f "$model_file" ]]; then
-        ok "Model already downloaded: ggml-${model}.bin"
-    else
-        info "Downloading ggml-${model}.bin for ${purpose} (~142 MB)..."
-        cd "$WHISPER_CPP_DIR"
-        bash ./models/download-ggml-model.sh "$model"
-        cd "$SCRIPT_DIR"
-
-        if [[ -f "$model_file" ]]; then
-            ok "Model downloaded"
-        else
-            error "Model download failed"
-            exit 1
-        fi
-    fi
-}
-
-download_model "$WHISPER_MODEL" "English dictation"
-download_model "$WHISPER_MULTILINGUAL_MODEL" "Portuguese and auto-detect dictation"
-
-# Also download tiny model for faster live preview (~75 MB)
-TINY_MODEL="$WHISPER_CPP_DIR/models/ggml-tiny.bin"
-if [[ -f "$TINY_MODEL" ]]; then
-    ok "Tiny model already downloaded (used for fast live preview)"
-else
-    info "Downloading ggml-tiny.bin for faster live preview (~75 MB)..."
-    cd "$WHISPER_CPP_DIR"
-    bash ./models/download-ggml-model.sh tiny
-    cd "$SCRIPT_DIR"
-
-    if [[ -f "$TINY_MODEL" ]]; then
-        ok "Tiny model downloaded"
-    else
-        warn "Tiny model download failed — live preview will use main model (slower but works)"
-    fi
-fi
+download_model "$WHISPER_MODEL" "final English dictation" "142 MB" "$WHISPER_MODEL_MIN_BYTES"
+download_model "$WHISPER_PREVIEW_MODEL" "fast English live preview" "75 MB" "$WHISPER_PREVIEW_MODEL_MIN_BYTES"
 
 # ─── Step 4: Install Hammerspoon config ─────────────────────────────────────
 echo ""
-info "Step 4/6: Setting up Hammerspoon..."
+info "Step 4/7: Setting up Hammerspoon and English defaults..."
 
 mkdir -p "$HAMMERSPOON_DIR"
 
-# Create config directory for user settings
-CONFIG_DIR="$HOME/.local-whisper"
 mkdir -p "$CONFIG_DIR"
+chmod 700 "$CONFIG_DIR"
 ok "Config directory: $CONFIG_DIR"
 
-if [[ -f "$HAMMERSPOON_DIR/init.lua" ]]; then
-    if grep -q "local-whisper" "$HAMMERSPOON_DIR/init.lua"; then
-        # Existing local-whisper config — update it but preserve user settings
-        # (user settings live in ~/.local-whisper/, not in init.lua)
-        cp "$SCRIPT_DIR/hammerspoon/init.lua" "$HAMMERSPOON_DIR/init.lua"
-        ok "Hammerspoon config updated"
-    else
-        warn "Existing init.lua found — backing up to init.lua.backup"
-        cp "$HAMMERSPOON_DIR/init.lua" "$HAMMERSPOON_DIR/init.lua.backup"
-        cp "$SCRIPT_DIR/hammerspoon/init.lua" "$HAMMERSPOON_DIR/init.lua"
-        ok "Hammerspoon config installed (backup saved)"
-    fi
-else
-    cp "$SCRIPT_DIR/hammerspoon/init.lua" "$HAMMERSPOON_DIR/init.lua"
-    ok "Hammerspoon config installed"
-fi
+install_hammerspoon_config "$SCRIPT_DIR/hammerspoon/init.lua" "$HAMMERSPOON_DIR/init.lua"
+
+printf '%s\n' "en" > "$CONFIG_DIR/lang"
+printf '%s\n' "$WHISPER_MODEL" > "$CONFIG_DIR/model"
+chmod 600 "$CONFIG_DIR/lang" "$CONFIG_DIR/model"
+ok "English dictation configured (${WHISPER_MODEL})"
 
 # Install example voice commands if user doesn't have a config yet
 if [[ ! -f "$HAMMERSPOON_DIR/local_whisper_actions.lua" ]]; then
@@ -185,15 +438,62 @@ if [[ ! -f "$HAMMERSPOON_DIR/local_whisper_actions.lua" ]]; then
     fi
 fi
 
-# ─── Step 5: Setup (permissions, trigger key, audio device, HS CLI) ─────────
+# ─── Step 5: Install and configure local Gemma refinement ─────────────────
 echo ""
-info "Step 5/6: Running setup (permissions, trigger key, audio device)..."
+info "Step 5/7: Setting up local Gemma refinement..."
+echo ""
+
+info "Starting Ollama automatically at login..."
+brew services start ollama
+
+OLLAMA_READY=false
+for _ in {1..30}; do
+    if curl -fsS --connect-timeout 2 --max-time 3 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
+        OLLAMA_READY=true
+        break
+    fi
+    sleep 1
+done
+
+if [[ "$OLLAMA_READY" != true ]]; then
+    error "Ollama did not start. Run 'brew services restart ollama', then re-run this installer."
+    exit 1
+fi
+ok "Ollama service is running"
+
+if ollama list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -Fxq "$OLLAMA_MODEL"; then
+    ok "Gemma model already downloaded: $OLLAMA_MODEL"
+else
+    info "Downloading $OLLAMA_MODEL (~7.2 GB). This can take several minutes..."
+    ollama pull "$OLLAMA_MODEL"
+fi
+
+if ! ollama list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -Fxq "$OLLAMA_MODEL"; then
+    error "Gemma model verification failed. Re-run this installer to try again."
+    exit 1
+fi
+
+info "Testing one local Gemma response..."
+if ! ollama_inference_ready; then
+    error "Gemma was downloaded but could not run. Restart the Mac and re-run ./install.sh."
+    exit 1
+fi
+ok "Gemma completed a local test inference"
+
+printf '%s\n' "on" > "$CONFIG_DIR/refine"
+printf '%s\n' "$OLLAMA_MODEL" > "$CONFIG_DIR/refine_model"
+chmod 600 "$CONFIG_DIR/refine" "$CONFIG_DIR/refine_model"
+ok "Guarded Gemma refinement enabled ($OLLAMA_MODEL)"
+
+# ─── Step 6: Setup (permissions, trigger key, audio device, HS CLI) ─────────
+echo ""
+info "Step 6/7: Running setup (permissions, trigger key, audio device)..."
 echo ""
 bash "$SCRIPT_DIR/setup.sh"
 
-# ─── Step 6: Optional — meeting recording mode ───────────────────────────────
+# ─── Step 7: Optional — meeting recording mode ───────────────────────────────
 echo ""
-info "Step 6/6: Meeting recording mode (optional)"
+info "Step 7/7: Meeting recording mode (optional)"
 echo ""
 echo "  Adds 'Meeting Mode' to the menu bar — captures system audio during"
 echo "  calls (Zoom, Meet, Teams, etc.), produces a live transcript and"
@@ -250,3 +550,11 @@ if [[ "$ENABLE_MEETING" =~ ^[Yy]$ ]]; then
 else
     ok "Skipped — meeting mode disabled. Re-run installer to enable."
 fi
+
+echo ""
+echo -e "${BOLD}────────────────────────────────────────────────${NC}"
+echo -e "${GREEN}${BOLD}Installation complete${NC}"
+echo -e "${BOLD}────────────────────────────────────────────────${NC}"
+echo ""
+echo "English Whisper and guarded Gemma refinement are installed locally."
+echo "Run ./install.sh --verify at any time to check the installation."

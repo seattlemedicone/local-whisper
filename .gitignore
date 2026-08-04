@@ -9,6 +9,26 @@
 # Logs
 *.log
 
+# Local dictation data and audio (may contain PHI)
+*.wav
+*.mp3
+*.m4a
+*.aiff
+*.flac
+*.pcm
+recordings/
+transcripts/
+whisper-dictate/
+recent.json
+refine_payload_*.json
+
+# Machine-local configuration and credentials
+.env
+.env.*
+!.env.example
+*.local
+local-config/
+
 # Dolt (beads runtime — .beads/ is tracked, these are not)
 .dolt/
 .doltcfg/
