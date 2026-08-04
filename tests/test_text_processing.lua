@@ -55,6 +55,26 @@ local acceptanceCases = {
         expected = "BP 132/82 | P 88 | R 20 | SpO2 98% 2 L/min NC | EtCO2 35 mm Hg",
     },
     {
+        name = "liter-only nasal cannula and EtCO2 filler",
+        input = "blood pressure 132 over 82 pulse 88 respirations 20 oxygen saturation 98% on 2 liters nasal cannula end tidal CO2 is 35",
+        expected = "BP 132/82 | P 88 | R 20 | SpO2 98% 2 L/min NC | EtCO2 35 mm Hg",
+    },
+    {
+        name = "abbreviated vitals with liter-only nasal cannula",
+        input = "BP 132/82 P 88 R 20 SpO2 98% on 2 liters nasal cannula",
+        expected = "BP 132/82 | P 88 | R 20 | SpO2 98% 2 L/min NC",
+    },
+    {
+        name = "standalone oxygen with liter-only nasal cannula",
+        input = "oxygen saturation 97% on 2 liters nasal cannula",
+        expected = "SpO2 97% 2 L/min NC",
+    },
+    {
+        name = "abbreviated EtCO2 filler",
+        input = "EtCO2 of 35",
+        expected = "EtCO2 35 mm Hg",
+    },
+    {
         name = "standalone oxygen saturation on room air",
         input = "oxygen saturation 91% on room air",
         expected = "SpO2 91% RA",

@@ -275,6 +275,10 @@ local function applyVitalSignsFormatting(text)
     text = text:gsub("([Rr]espirations?)[ \t]+[Aa]re[ \t]+(%d)", "%1 %2")
     text = text:gsub("([Oo]xygen[ \t]+saturation)[ \t]+[Oo]f[ \t]+(%d)", "%1 %2")
     text = text:gsub("([Oo]xygen[ \t]+saturation)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2)[ \t]+[Oo]f[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Ee][Tt][Cc][Oo]2)[ \t]+[Oo]f[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Ee][Tt][Cc][Oo]2)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
 
     local function collapseSpacedSaturationRange(label)
         text = text:gsub(
@@ -340,6 +344,12 @@ local function applyVitalSignsFormatting(text)
     )
     text = text:gsub(
         abbreviatedVitalPrefix .. "[ \t]+[Oo]n[ \t]+(%d+)[ \t]+[Ll]iters?[ \t]+per[ \t]+minute[ \t]+[Nn]asal[ \t]+cannula",
+        function(systolic, diastolic, pulse, respirations, saturation, flow)
+            return formatAbbreviatedVitals(systolic, diastolic, pulse, respirations, saturation, flow .. " L/min NC")
+        end
+    )
+    text = text:gsub(
+        abbreviatedVitalPrefix .. "[ \t]+[Oo]n[ \t]+(%d+)[ \t]+[Ll]iters?[ \t]+[Nn]asal[ \t]+cannula",
         function(systolic, diastolic, pulse, respirations, saturation, flow)
             return formatAbbreviatedVitals(systolic, diastolic, pulse, respirations, saturation, flow .. " L/min NC")
         end
@@ -411,6 +421,13 @@ local function applyVitalSignsFormatting(text)
         "(%d+)[ \t]+[Ll]iters?[ \t]+per[ \t]+minute[ \t]+" ..
         "[Nn]asal[ \t]+cannula"
     text = text:gsub(nasalCannulaLpmPattern, function(value, flow)
+        return formatSaturation(value, flow .. " L/min NC")
+    end)
+
+    local nasalCannulaLitersPattern =
+        "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
+        "(%d+)[ \t]+[Ll]iters?[ \t]+[Nn]asal[ \t]+cannula"
+    text = text:gsub(nasalCannulaLitersPattern, function(value, flow)
         return formatSaturation(value, flow .. " L/min NC")
     end)
 
