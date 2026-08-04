@@ -361,6 +361,22 @@ local function applyVitalSignsFormatting(text)
     -- Normalize the complete EtCO2 numeric expression before adding its unit.
     -- This avoids inserting units inside decimals, ranges, or fractions.
     local etco2Value = "[%+%-]?%d[%d%.,/%+%-]*"
+    local etco2Labels = {
+        "[Ee][Tt][Cc][Oo]2",
+        "[Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2",
+    }
+    local spokenEtCO2Units = {
+        "[Mm]illimeters?[ \t]+[Oo]f[ \t]+[Mm]ercury",
+        "[Mm]illimeters?[ \t]+[Mm]ercury",
+    }
+    for _, label in ipairs(etco2Labels) do
+        for _, unit in ipairs(spokenEtCO2Units) do
+            text = text:gsub(
+                "(" .. label .. "[ \t]+" .. etco2Value .. ")[ \t]+" .. unit,
+                "%1"
+            )
+        end
+    end
     text = text:gsub(
         "([Ee][Tt][Cc][Oo]2[ \t]+" .. etco2Value .. ")[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
         "%1"
@@ -566,12 +582,20 @@ end
 -- abbreviations; uncertain responses fall back to source.
 local function extractCaseSensitiveTokens(text)
     local tokens = {}
-    local clinicalTitleCase = { Na = true, Ca = true, Cl = true }
+    local ordinaryTwoLetterWords = {
+        Am = true, An = true, As = true, At = true, Be = true, By = true,
+        Do = true, Go = true, He = true, If = true, In = true, Is = true,
+        It = true, Me = true, My = true, No = true, Of = true, Oh = true,
+        Ok = true, On = true, Or = true, So = true, To = true, Up = true, Us = true,
+        We = true,
+    }
     local normalized = removeClearlyDelimitedFillerPhrases(text)
     for token in normalized:gmatch("[%a][%a']*") do
+        local shortTitleCase = token:match("^[A-Z][a-z]$")
+            and not ordinaryTwoLetterWords[token]
         if token:match("^[A-Z]+$")
             or token:sub(2):match("[A-Z]")
-            or clinicalTitleCase[token]
+            or shortTitleCase
         then
             table.insert(tokens, token)
         end

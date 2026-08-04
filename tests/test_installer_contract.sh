@@ -42,6 +42,9 @@ require_text "$REPO_ROOT/install.sh" 'bash ./models/download-ggml-model.sh "$mod
 require_text "$REPO_ROOT/install.sh" 'Gemma completed a local test inference'
 require_text "$REPO_ROOT/install.sh" 'Ollama is registered to start automatically at login'
 require_text "$REPO_ROOT/install.sh" 'WhisperInstallationDiagnostics.microphone()'
+require_text "$REPO_ROOT/install.sh" 'configured_model="$(read_compact_file "$CONFIG_DIR/model")"'
+require_text "$REPO_ROOT/install.sh" 'verify_whisper_model "$WHISPER_CPP_DIR/models/ggml-${configured_model}.bin" 1'
+reject_text "$REPO_ROOT/install.sh" '[[ "$(read_compact_file "$CONFIG_DIR/model")" == "$WHISPER_MODEL" ]]'
 reject_text "$REPO_ROOT/install.sh" 'WHISPER_MULTILINGUAL_MODEL'
 
 require_text "$REPO_ROOT/hammerspoon/init.lua" 'SeattleMedicOne deployment is intentionally English-only.'

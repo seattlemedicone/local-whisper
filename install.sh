@@ -181,6 +181,7 @@ is_guarded_hammerspoon_config() {
 
 verify_installation() {
     local failed=false
+    local configured_model=""
     local ollama_bin=""
     local hs_bin=""
     local ffmpeg_bin=""
@@ -258,11 +259,13 @@ verify_installation() {
         failed=true
     fi
 
+    configured_model="$(read_compact_file "$CONFIG_DIR/model")"
     if [[ "$(read_compact_file "$CONFIG_DIR/lang")" == "en" ]] &&
-       [[ "$(read_compact_file "$CONFIG_DIR/model")" == "$WHISPER_MODEL" ]]; then
-        ok "English Whisper configuration is active"
+       [[ "$configured_model" =~ ^[A-Za-z0-9._-]+$ ]] &&
+       verify_whisper_model "$WHISPER_CPP_DIR/models/ggml-${configured_model}.bin" 1; then
+        ok "English Whisper configuration is active (${configured_model})"
     else
-        error "English Whisper configuration is incomplete"
+        error "Configured English Whisper model is missing or unreadable: ${configured_model:-unset}"
         failed=true
     fi
 

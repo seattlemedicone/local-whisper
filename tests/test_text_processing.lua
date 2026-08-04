@@ -85,6 +85,16 @@ local acceptanceCases = {
         expected = "EtCO2 35-40 mm Hg",
     },
     {
+        name = "spoken end tidal carbon dioxide units",
+        input = "end tidal CO2 35 millimeters of mercury",
+        expected = "EtCO2 35 mm Hg",
+    },
+    {
+        name = "spoken abbreviated end tidal carbon dioxide units",
+        input = "EtCO2 35 millimeters mercury",
+        expected = "EtCO2 35 mm Hg",
+    },
+    {
         name = "decimal EtCO2 follows respirations without SpO2",
         input = "blood pressure 120 over 80 pulse 70 respirations 16 end tidal CO2 35,5",
         expected = "BP 120/80 | P 70 | R 16 | EtCO2 35,5 mm Hg",
@@ -201,6 +211,11 @@ local acceptedRefinements = {
         name = "comma-delimited I mean remains an allowed filler",
         source = "I mean, the finding is unchanged.",
         candidate = "The finding is unchanged.",
+    },
+    {
+        name = "ordinary short word may gain sentence capitalization",
+        source = "he remained alert.",
+        candidate = "He remained alert.",
     },
 }
 
@@ -326,8 +341,8 @@ local rejectedRefinements = {
     },
     {
         name = "title-case clinical abbreviations changed",
-        source = "The Na was 135 and the Ca and Cl were measured.",
-        candidate = "The na was 135 and the ca and cl were measured.",
+        source = "The Na, Ca, Cl, Mg, Fe, and Hb were measured.",
+        candidate = "The na, ca, cl, mg, fe, and hb were measured.",
         reason = "case-sensitive terms changed",
     },
     {
