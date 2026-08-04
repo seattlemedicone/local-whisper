@@ -547,11 +547,31 @@ local function postProcess(text, appBundleID)
     text = text:gsub(" *\n *", "\n")
     -- Keep clock times compact and repair missing sentence spaces from Whisper.
     text = text:gsub("(%d)[ \t]*:[ \t]*(%d)", "%1:%2")
-    text = text:gsub("%.([A-Z])", ". %1")
+    text = (function(value)
+        local output = {}
+        for index = 1, #value do
+            local character = value:sub(index, index)
+            output[#output + 1] = character
+            if character == "." then
+                local previousCharacter = value:sub(index - 1, index - 1)
+                local nextCharacter = value:sub(index + 1, index + 1)
+                local characterAfterNext = value:sub(index + 2, index + 2)
+                local dottedInitialism = previousCharacter:match("[A-Z]") and
+                    nextCharacter:match("[A-Z]") and characterAfterNext == "."
+                if nextCharacter:match("[A-Z]") and not dottedInitialism then
+                    output[#output + 1] = " "
+                end
+            end
+        end
+        return table.concat(output)
+    end)(text)
     -- Trim again after removals
     text = text:gsub("^[ \t]+", ""):gsub("[ \t]+$", "")
     -- Auto-capitalize sentence and paragraph starts (skip terminals/code editors)
     if not (appBundleID and NO_CAPITALIZE_APPS[appBundleID]) then
+        -- Shield the final period of a dotted initialism so its following word
+        -- is not mistaken for the start of a new sentence.
+        text = text:gsub("(%f[%a][A-Z]%.[A-Z])%.([ \t]+%l)", "%1\30%2")
         local function capitalizeWord(prefix, word)
             if word:sub(2):match("[A-Z]") then return prefix .. word end
             return prefix .. word:sub(1, 1):upper() .. word:sub(2)
@@ -565,6 +585,7 @@ local function postProcess(text, appBundleID)
         text = text:gsub("(\n+)(%l[%a']*)", function(prefix, word)
             return capitalizeWord(prefix, word)
         end)
+        text = text:gsub("\30", ".")
     end
     return text
 end

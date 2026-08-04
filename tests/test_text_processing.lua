@@ -220,6 +220,21 @@ local acceptanceCases = {
         expected = "The ETA is 15:45. The ETA is 1545.",
     },
     {
+        name = "dotted clinical initialism is preserved",
+        input = "The E.K.G. showed ST elevation.",
+        expected = "The E.K.G. showed ST elevation.",
+    },
+    {
+        name = "dotted geographic initialism is preserved",
+        input = "The U.S. exam standard was used.",
+        expected = "The U.S. exam standard was used.",
+    },
+    {
+        name = "missing sentence space after dotted initialism is repaired",
+        input = "The E.K.G. was obtained.The tracing was abnormal.",
+        expected = "The E.K.G. was obtained. The tracing was abnormal.",
+    },
+    {
         name = "mixed-case term preserved at sentence boundary",
         input = "Acidosis noted. pH was 7.20.",
         expected = "Acidosis noted. pH was 7.20.",
