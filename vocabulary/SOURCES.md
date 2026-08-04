@@ -16,6 +16,7 @@ https://www.nlm.nih.gov/databases/download/terms_and_conditions_mesh.html
 
 This project is not endorsed by NLM, NHTSA, or NEMSIS. The bundled prompt is a
 small project-authored selection, not a redistribution of either full dataset,
-and may not reflect later terminology revisions. Patient names, agency-specific
-terms, and machine-specific configuration belong only in the local
-`~/.local-whisper/prompt` file and must not be committed.
+and may not reflect later terminology revisions. Harborview and Medic One terms
+were added for this project's local EMS context. Patient names, other
+agency-specific terms, and machine-specific configuration belong only in the
+local `~/.local-whisper/prompt` file and must not be committed.

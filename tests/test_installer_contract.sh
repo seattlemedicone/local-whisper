@@ -81,6 +81,12 @@ require_text "$REPO_ROOT/README.md" './install.sh --verify'
 require_text "$REPO_ROOT/README.md" 'cp ~/local-whisper/vocabulary/ems_prompt.txt ~/.local-whisper/prompt'
 require_text "$REPO_ROOT/README.md" 'chmod 600 ~/.local-whisper/prompt'
 require_text "$REPO_ROOT/README.md" 'Do not commit patient information'
+require_text "$REPO_ROOT/vocabulary/ems_prompt.txt" 'Trauma care:'
+require_text "$REPO_ROOT/vocabulary/ems_prompt.txt" 'STEMI care:'
+require_text "$REPO_ROOT/vocabulary/ems_prompt.txt" 'Stroke care:'
+require_text "$REPO_ROOT/vocabulary/ems_prompt.txt" 'Overdose care:'
+require_text "$REPO_ROOT/vocabulary/ems_prompt.txt" 'Harborview Medical Center'
+require_text "$REPO_ROOT/vocabulary/ems_prompt.txt" 'Seattle Medic One'
 
 TEST_ROOT="$(mktemp -d)"
 USER_TRASH="$HOME/.Trash"
