@@ -262,9 +262,9 @@ local NO_CAPITALIZE_APPS = {
 -- Canonicalize complete spoken vital-sign sequences after model cleanup.
 local function applyVitalSignsFormatting(text)
     -- Whisper often inserts natural filler words into dictated vital signs.
-    text = text:gsub("([Bb]lood[ \t]+pressure)[ \t]+[Oo]f[ \t]+", "%1 ")
-    text = text:gsub("([Rr]espirations?)[ \t]+[Ii]s[ \t]+", "%1 ")
-    text = text:gsub("([Oo]xygen[ \t]+saturation)[ \t]+[Ii]s[ \t]+", "%1 ")
+    text = text:gsub("([Bb]lood[ \t]+pressure)[ \t]+[Oo]f[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Rr]espirations?)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Oo]xygen[ \t]+saturation)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
 
     -- Normalize an already abbreviated vital-sign sequence as well. This lets
     -- the deterministic formatter enforce the schema even when Whisper (or a
@@ -348,7 +348,15 @@ local function applyVitalSignsFormatting(text)
 
     -- Normalize optional end-tidal CO2 and add its separator only when needed.
     text = text:gsub(
+        "([Ee][Tt][Cc][Oo]2[ \t]+%d+%.%d+)[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
+        "%1"
+    )
+    text = text:gsub(
         "([Ee][Tt][Cc][Oo]2[ \t]+%d+)[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
+        "%1"
+    )
+    text = text:gsub(
+        "([Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+%d+%.%d+)[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
         "%1"
     )
     text = text:gsub(
@@ -356,11 +364,25 @@ local function applyVitalSignsFormatting(text)
         "%1"
     )
     text = text:gsub(
+        "[Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+(%d+%.%d+)",
+        "EtCO2 %1"
+    )
+    text = text:gsub(
         "[Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+(%d+)",
         "EtCO2 %1"
     )
-    text = text:gsub("[Ee][Tt][Cc][Oo]2[ \t]+(%d+)", "EtCO2 %1 mm Hg")
-    local etco2Field = "EtCO2[ \t]+%d+[ \t]+mm[ \t]+Hg"
+    text = text:gsub(
+        "[Ee][Tt][Cc][Oo]2[ \t]+(%d+)([%.]?)(%d*)",
+        function(whole, decimalPoint, fraction)
+            if decimalPoint == "." and fraction == "" then
+                return "EtCO2 " .. whole .. " mm Hg."
+            end
+            local value = whole
+            if fraction ~= "" then value = value .. "." .. fraction end
+            return "EtCO2 " .. value .. " mm Hg"
+        end
+    )
+    local etco2Field = "EtCO2[ \t]+%d+[%.]?%d*[ \t]+mm[ \t]+Hg"
     local adjacentSpO2Fields = {
         "SpO2[ \t]+%d+%%[ \t]+%d+[ \t]+L/min[ \t]+NC",
         "SpO2[ \t]+%d+%%[ \t]+RA",
@@ -482,8 +504,8 @@ local function removeAllowedFillerTokens(tokens)
 end
 
 local function removeClearlyDelimitedFillerPhrases(text)
-    local normalized = text:lower()
-    local phrases = {"you[ \t]+know", "i[ \t]+mean"}
+    local normalized = text
+    local phrases = {"[Yy]ou[ \t]+[Kk]now", "[Ii][ \t]+[Mm]ean"}
     for _, phrase in ipairs(phrases) do
         -- Only a phrase at the start of an utterance/sentence or immediately
         -- after delimiter punctuation, followed by a comma, is clearly filler.
@@ -496,7 +518,7 @@ end
 
 local function extractMeaningfulTokens(text)
     local tokens = {}
-    local normalized = removeClearlyDelimitedFillerPhrases(text)
+    local normalized = removeClearlyDelimitedFillerPhrases(text):lower()
     for token in normalized:gmatch("[%a][%a']*") do
         table.insert(tokens, token)
     end
@@ -522,8 +544,9 @@ end
 -- letter after the first character; uncertain responses fall back to source.
 local function extractCaseSensitiveTokens(text)
     local tokens = {}
-    for token in text:gmatch("[%a][%a']*") do
-        if token:match("^[A-Z][A-Z]+$") or token:sub(2):match("[A-Z]") then
+    local normalized = removeClearlyDelimitedFillerPhrases(text)
+    for token in normalized:gmatch("[%a][%a']*") do
+        if token:match("^[A-Z]+$") or token:sub(2):match("[A-Z]") then
             table.insert(tokens, token)
         end
     end

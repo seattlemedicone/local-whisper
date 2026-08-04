@@ -60,6 +60,11 @@ local acceptanceCases = {
         expected = "EtCO2 42 mm Hg",
     },
     {
+        name = "decimal end tidal carbon dioxide",
+        input = "EtCO2 35.5 mm Hg",
+        expected = "EtCO2 35.5 mm Hg",
+    },
+    {
         name = "already abbreviated vital signs gain canonical separators",
         input = "BP 132/82 P 88 R 20 SpO2 98% RA EtCO2 35",
         expected = "BP 132/82 | P 88 | R 20 | SpO2 98% RA | EtCO2 35 mm Hg",
@@ -118,6 +123,11 @@ local acceptanceCases = {
         name = "ordinary new line phrase is preserved",
         input = "A new line was placed for norepinephrine.",
         expected = "A new line was placed for norepinephrine.",
+    },
+    {
+        name = "non-numeric vital-sign prose is preserved",
+        input = "The blood pressure of the patient was unobtainable. Respiration is labored.",
+        expected = "The blood pressure of the patient was unobtainable. Respiration is labored.",
     },
     {
         name = "unrelated clinical prose remains unchanged",
@@ -281,6 +291,12 @@ local rejectedRefinements = {
         name = "internal-uppercase clinical terms changed",
         source = "The arterial pH was measured after 2 mL.",
         candidate = "The arterial ph was measured after 2 ml.",
+        reason = "case-sensitive terms changed",
+    },
+    {
+        name = "single-letter clinical abbreviation changed",
+        source = "The blood type is O positive.",
+        candidate = "The blood type is o positive.",
         reason = "case-sensitive terms changed",
     },
 }
