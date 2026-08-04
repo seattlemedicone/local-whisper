@@ -415,6 +415,16 @@ local acceptanceCases = {
         expected = "SpO2 97% 2 L/min\nSkin: diaphoretic\n\n12-lead ECG shows ST elevation in V1, V2, and V3.",
     },
     {
+        name = "live facility-name misrecognition is corrected",
+        input = "ETA to Virginia Midget. Mason is 16 colon 58.",
+        expected = "ETA to Virginia Mason is 16:58.",
+    },
+    {
+        name = "live substernal misrecognition is corrected",
+        input = "The patient developed sub-cernal chest pain.",
+        expected = "The patient developed substernal chest pain.",
+    },
+    {
         name = "ordinary new line phrase is preserved",
         input = "A new line was placed for norepinephrine.",
         expected = "A new line was placed for norepinephrine.",
@@ -531,6 +541,18 @@ local rejectedRefinements = {
         reason = "meaningful words changed or reordered",
     },
     {
+        name = "letter-digit clinical abbreviation spacing is preserved",
+        source = "Patient is on O2 by nasal cannula.",
+        candidate = "Patient is on O 2 by nasal cannula.",
+        reason = "numeric facts changed",
+    },
+    {
+        name = "digit-unit adjacency is preserved",
+        source = "Administered 2mg naloxone.",
+        candidate = "Administered 2 mg naloxone.",
+        reason = "numeric facts changed",
+    },
+    {
         name = "reordered facts",
         source = "Pulse 88 and respirations 20.",
         candidate = "Respirations 20 and pulse 88.",
@@ -570,7 +592,7 @@ local rejectedRefinements = {
         name = "range changed to fraction",
         source = "Dose 1–2 mg.",
         candidate = "Dose 1/2 mg.",
-        reason = "protected symbols changed",
+        reason = "numeric facts changed",
     },
     {
         name = "inequality moved to another measurement",

@@ -690,6 +690,12 @@ local function postProcess(text, appBundleID)
     -- leading zero (for example, ".5 mg" becomes "0.5 mg").
     text = text:gsub("^([%+%-]?)%.(%d)", "%10.%2")
     text = text:gsub("([%s%(%[%{=,:;])([%+%-]?)%.(%d)", "%1%20.%3")
+    -- Correct only high-confidence nonwords and known facility-name
+    -- corruptions observed in local EMS dictation. Gemma is intentionally not
+    -- allowed to perform unconstrained clinical vocabulary rewrites.
+    text = text:gsub("[Ss]ub[%- ]?[Cc]ernal", "substernal")
+    text = text:gsub("[Vv]irginia[ \t]+[Mm]idget%.[ \t]+[Mm]ason", "Virginia Mason")
+    text = text:gsub("[Vv]irginia[ \t]+[Mm]idget[ \t]+[Mm]ason", "Virginia Mason")
     text = applyDictationCommands(text)
     text = text:gsub("12[ \t]+[Ll]ead", "12-lead")
     text = text:gsub("[Ss][Tt][ \t]+segment", "ST-segment")
@@ -777,7 +783,18 @@ local function extractNumericFacts(text)
             if leadingDecimal then value = "0" .. prior .. value end
             local sign = leadingDecimal and beforePrior or prior
             if sign == "+" or sign == "-" then value = sign .. value end
-            table.insert(facts, tostring(wordIndex) .. ":" .. value)
+            local leftAdjacent = (
+                normalized:sub(startIndex - 1, startIndex - 1):match("%a") ~= nil or
+                (normalized:byte(startIndex - 1) or 0) >= 128
+            ) and "1" or "0"
+            local rightAdjacent = (
+                normalized:sub(i, i):match("%a") ~= nil or
+                (normalized:byte(i) or 0) >= 128
+            ) and "1" or "0"
+            table.insert(
+                facts,
+                tostring(wordIndex) .. ":" .. value .. ":L" .. leftAdjacent .. ":R" .. rightAdjacent
+            )
         elseif char:match("%a") then
             wordIndex = wordIndex + 1
             i = i + 1
