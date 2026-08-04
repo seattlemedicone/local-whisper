@@ -714,6 +714,7 @@ local PROTECTED_SYMBOLS = {
 local function extractProtectedFactSequence(text)
     local facts = {}
     local i = 1
+    local numberIndex = 0
     local wordIndex = 0
     while i <= #text do
         local matchedSymbol = nil
@@ -725,9 +726,15 @@ local function extractProtectedFactSequence(text)
         end
 
         if matchedSymbol then
-            table.insert(facts, "symbol:" .. tostring(wordIndex) .. ":" .. matchedSymbol)
+            table.insert(facts, string.format(
+                "symbol:%d:%d:%s",
+                wordIndex,
+                numberIndex,
+                matchedSymbol
+            ))
             i = i + #matchedSymbol
         elseif text:sub(i, i):match("%d") then
+            numberIndex = numberIndex + 1
             local startIndex = i
             i = i + 1
             while i <= #text and text:sub(i, i):match("[%d%.,]") do

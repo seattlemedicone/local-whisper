@@ -339,26 +339,20 @@ verify_installation() {
         failed=true
     fi
 
-    if [[ -n "$ollama_bin" ]] && ollama_model_installed "$OLLAMA_MODEL"; then
-        ok "Gemma model is installed: $OLLAMA_MODEL"
-    else
-        error "Gemma model is missing: $OLLAMA_MODEL"
-        failed=true
-    fi
-
-    if ollama_inference_ready; then
-        ok "Gemma completed a local test inference"
-    else
-        error "Gemma is installed but could not complete a local test inference"
-        failed=true
-    fi
-
     refine_state="$(read_compact_file "$CONFIG_DIR/refine")"
     refine_model="$(read_compact_file "$CONFIG_DIR/refine_model")"
+    if [[ -n "$ollama_bin" ]] && ollama_model_installed "$refine_model"; then
+        ok "Configured refinement model is installed: $refine_model"
+    else
+        error "Configured refinement model is missing: ${refine_model:-unset}"
+        failed=true
+    fi
+
     if [[ "$refine_state" == "off" ]] && ollama_model_installed "$refine_model"; then
         ok "Guarded local refinement is disabled by user preference (${refine_model})"
     elif [[ "$refine_state" == "on" ]] && ollama_model_installed "$refine_model" &&
          ollama_inference_ready "$refine_model"; then
+        ok "Configured refinement model completed a local test inference (${refine_model})"
         ok "Guarded local refinement is enabled (${refine_model})"
     else
         error "Guarded refinement preference or configured model is invalid"

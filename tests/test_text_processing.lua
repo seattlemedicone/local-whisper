@@ -477,6 +477,12 @@ local rejectedRefinements = {
         candidate = "Record H H and D C history.",
         reason = "protected symbols changed",
     },
+    {
+        name = "time colon moved after adjacent number",
+        source = "At 12:30 administer 5 mg.",
+        candidate = "At 12 30: administer 5 mg.",
+        reason = "protected symbols changed",
+    },
 }
 
 for _, case in ipairs(rejectedRefinements) do
