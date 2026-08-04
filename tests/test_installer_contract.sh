@@ -91,6 +91,7 @@ require_text "$REPO_ROOT/vocabulary/ems_prompt.txt" 'Stroke care:'
 require_text "$REPO_ROOT/vocabulary/ems_prompt.txt" 'Overdose care:'
 require_text "$REPO_ROOT/vocabulary/ems_prompt.txt" 'Harborview Medical Center'
 require_text "$REPO_ROOT/vocabulary/ems_prompt.txt" 'Seattle Medic One'
+require_text "$REPO_ROOT/vocabulary/ems_prompt.txt" 'Virginia Mason Medical Center'
 
 TEST_ROOT="$(mktemp -d)"
 USER_TRASH="$HOME/.Trash"

@@ -394,6 +394,10 @@ local function applyVitalSignsFormatting(text)
         "[Bb]lood[ \t]+pressure[ \t]+(%d+)[ \t]+[Oo]ver[ \t]+(%d+)",
         "BP %1/%2"
     )
+    text = text:gsub(
+        "[Bb]lood[ \t]+pressure[ \t]+(%d+)[ \t]*/[ \t]*(%d+)",
+        "BP %1/%2"
+    )
     text = text:gsub("[Pp]ulse[ \t]+(%d+)", "P %1")
     text = text:gsub("[Rr]espirations?[ \t]+(%d+)", "R %1")
 
@@ -431,6 +435,34 @@ local function applyVitalSignsFormatting(text)
         "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+" ..
         "[Rr]oom[ \t]+air"
     text = text:gsub(roomAirWithoutOnPattern, function(value) return formatSaturation(value, "RA") end)
+
+    local flowOnlyPerMinutePattern =
+        "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
+        "(%d+)[ \t]+[Ll]iters?[ \t]+per[ \t]+minute"
+    text = text:gsub(flowOnlyPerMinutePattern, function(value, flow)
+        return formatSaturation(value, flow .. " L/min")
+    end)
+
+    local flowOnlyPattern =
+        "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
+        "(%d+)[ \t]+[Ll]iters?"
+    text = text:gsub(flowOnlyPattern, function(value, flow)
+        return formatSaturation(value, flow .. " L/min")
+    end)
+
+    local abbreviatedFlowOnlyPerMinutePattern =
+        "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
+        "(%d+)[ \t]+[Ll]iters?[ \t]+per[ \t]+minute"
+    text = text:gsub(abbreviatedFlowOnlyPerMinutePattern, function(value, flow)
+        return formatSaturation(value, flow .. " L/min")
+    end)
+
+    local abbreviatedFlowOnlyPattern =
+        "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
+        "(%d+)[ \t]+[Ll]iters?"
+    text = text:gsub(abbreviatedFlowOnlyPattern, function(value, flow)
+        return formatSaturation(value, flow .. " L/min")
+    end)
 
     -- Delivery method is optional. Run this fallback after the specific
     -- modality patterns so a complete saturation value is still canonical.
@@ -538,8 +570,8 @@ local function applyDictationCommands(text)
         text = text:gsub("[ \t]+" .. completePhrase .. "[%.%,]?[ \t]*", replacement)
     end
 
-    local newParagraph = "[Nn][Ee][Ww][ \t]+[Pp][Aa][Rr][Aa][Gg][Rr][Aa][Pp][Hh]"
-    local newLine = "[Nn][Ee][Ww][ \t]+[Ll][Ii][Nn][Ee]"
+    local newParagraph = "[Nn][Ee][Ww][%- ]?[ \t]*[Pp][Aa][Rr][Aa][Gg][Rr][Aa][Pp][Hh]"
+    local newLine = "[Nn][Ee][Ww][%- ]?[ \t]*[Ll][Ii][Nn][Ee]"
 
     -- Explicit forms remain available when the surrounding prose is
     -- ambiguous. Every letter is case-insensitive because Whisper commonly
@@ -562,18 +594,27 @@ local function applyDictationCommands(text)
     local function replaceDelimitedBreak(phrase, replacement)
         text = text:gsub("^[ \t]*" .. phrase .. "[%.%,]?[ \t]*", replacement)
         text = text:gsub("([%.%!%?])[ \t]+" .. phrase .. "[%.%,]?[ \t]*", "%1" .. replacement)
+        text = text:gsub("[,;:][ \t]+" .. phrase .. "[%.%,]?[ \t]*", replacement)
     end
     replaceDelimitedBreak(newParagraph, "\n\n")
     replaceDelimitedBreak(newLine, "\n")
     local bloodPressureCue = "[Bb]lood[ \t]+pressure"
-    local function replaceMisheardParagraphCue(phrase)
+    local function replaceMisheardParagraphCue(phrase, followingCue)
         text = text:gsub(
-            "([%.%!%?])[ \t]+" .. phrase .. "[%.%,]?[ \t]+(" .. bloodPressureCue .. ")",
+            "([%.%!%?])[ \t]+" .. phrase .. "[%.%,]?[ \t]+(" .. followingCue .. ")",
             "%1\n\n%2"
         )
+        text = text:gsub(
+            "[,;:][ \t]+" .. phrase .. "[%.%,]?[ \t]+(" .. followingCue .. ")",
+            "\n\n%1"
+        )
     end
-    replaceMisheardParagraphCue("[Yy][Oo][Uu][Rr][ \t]+[Pp][Aa][Rr][Aa][Gg][Rr][Aa][Pp][Hh]")
-    replaceMisheardParagraphCue("[Tt][Hh][Ee][ \t]+[Pp][Aa][Rr][Aa][Gg][Rr][Aa][Pp][Hh]")
+    replaceMisheardParagraphCue("[Yy][Oo][Uu][Rr][ \t]+[Pp][Aa][Rr][Aa][Gg][Rr][Aa][Pp][Hh]", bloodPressureCue)
+    replaceMisheardParagraphCue("[Tt][Hh][Ee][ \t]+[Pp][Aa][Rr][Aa][Gg][Rr][Aa][Pp][Hh]", bloodPressureCue)
+    replaceMisheardParagraphCue(
+        "[Ii][Nn][ \t]+[Pp][Aa][Rr][Aa][Gg][Rr][Aa][Pp][Hh]",
+        "12[%- ]?[ \t]*[Ll]ead[ \t]+[Ee][Cc][Gg]"
+    )
 
     -- Unambiguous natural punctuation words may be spoken without the
     -- legacy prefix. Keep ambiguous clinical nouns (period and colon) behind
@@ -594,8 +635,27 @@ local function applyDictationCommands(text)
     -- after punctuation. Restrict the correction to that delimiter context
     -- so ordinary phrases such as "a common medication" remain untouched.
     text = text:gsub("([,;])[ \t]+[Cc][Oo][Mm][Mm][Oo][Nn][ \t]+", "%1 ")
+    -- Natural "colon" is useful for field labels but is also an anatomical
+    -- noun. Shield determiner-led and named anatomical uses before replacing
+    -- the remaining standalone command.
+    text = text:gsub("([Tt][Hh][Ee][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
+    text = text:gsub("([Aa][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
+    text = text:gsub("([Ss][Ii][Gg][Mm][Oo][Ii][Dd][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
+    text = text:gsub("([Aa][Ss][Cc][Ee][Nn][Dd][Ii][Nn][Gg][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
+    text = text:gsub("([Dd][Ee][Ss][Cc][Ee][Nn][Dd][Ii][Nn][Gg][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
+    text = text:gsub("([Tt][Rr][Aa][Nn][Ss][Vv][Ee][Rr][Ss][Ee][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
+    replaceCommand("[Cc][Oo][Ll][Oo][Nn]", ": ")
     text = text:gsub("(%d)[ \t]+[Cc][Oo][Ll][Oo][Nn][ \t]+(%d)", "%1:%2")
+    -- A dictated period that Whisper itself terminates with punctuation is
+    -- unambiguous; ordinary phrases such as "period of apnea" are preserved.
+    text = text:gsub("[ \t]+[Pp][Ee][Rr][Ii][Oo][Dd][%.%,][ \t]*", ". ")
+    text = text:gsub("\28", "colon")
     text = text:gsub("\29", "comma")
+
+    -- Whisper may add its own delimiter before also emitting the spoken
+    -- punctuation word. Prefer the explicitly dictated terminal mark.
+    text = text:gsub("[,;][ \t]*:", ":")
+    text = text:gsub("[,;:][ \t]*%.", ".")
 
     text = text:gsub("[ \t]+([,%.%?!:;])", "%1")
     text = text:gsub("[ \t]+\n", "\n"):gsub("\n[ \t]+", "\n")
@@ -620,6 +680,21 @@ local function postProcess(text, appBundleID)
     text = text:gsub("^([%+%-]?)%.(%d)", "%10.%2")
     text = text:gsub("([%s%(%[%{=,:;])([%+%-]?)%.(%d)", "%1%20.%3")
     text = applyDictationCommands(text)
+    text = text:gsub("12[ \t]+[Ll]ead", "12-lead")
+    text = text:gsub("[Ss][Tt][ \t]+segment", "ST-segment")
+    -- A strong prompt can occasionally echo a facility name. Collapse only
+    -- an adjacent identical destination in the specific ETA construction.
+    text = text:gsub(
+        "([Ee][Tt][Aa][ \t]+to[ \t]+)([%a][%a \t]-)%.[ \t]+([%a][%a \t]-)[ \t]+[Ii][Ss]%f[%A]",
+        function(prefix, firstName, secondName)
+            local first = firstName:gsub("[ \t]+$", "")
+            local second = secondName:gsub("[ \t]+$", "")
+            if first:lower() == second:lower() then
+                return prefix .. first .. " is"
+            end
+            return prefix .. first .. ". " .. second .. " is"
+        end
+    )
     text = applyVitalSignsFormatting(text)
     -- Collapse horizontal spaces without destroying lines or paragraphs.
     text = text:gsub("[ \t]+", " ")

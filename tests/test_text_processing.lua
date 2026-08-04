@@ -305,9 +305,29 @@ local acceptanceCases = {
         expected = "SpO2 97% on room air.\nThe patient is diaphoretic.",
     },
     {
+        name = "merged newline command after a delimiter",
+        input = "SpO2 97% on room air, newline skin colon diaphoretic.",
+        expected = "SpO2 97% on room air\nSkin: diaphoretic.",
+    },
+    {
         name = "partial vital set omits an undictated respiration field",
         input = "blood pressure 150 over 90 pulse 60 oxygen saturation 97% on room air",
         expected = "BP 150/90 | P 60 | SpO2 97% RA",
+    },
+    {
+        name = "spoken label with already slashed blood pressure",
+        input = "blood pressure 140/90 pulse 69 respirations 18",
+        expected = "BP 140/90 | P 69 | R 18",
+    },
+    {
+        name = "oxygen flow without a recognized device does not infer one",
+        input = "oxygen saturation 97% on 2 liters",
+        expected = "SpO2 97% 2 L/min",
+    },
+    {
+        name = "abbreviated oxygen flow without a recognized device is idempotent",
+        input = "SpO2 97% on 2 liters",
+        expected = "SpO2 97% 2 L/min",
     },
     {
         name = "natural comma commands",
@@ -333,6 +353,51 @@ local acceptanceCases = {
         name = "spoken colon between clock digits",
         input = "The ETA is 14 colon 45.",
         expected = "The ETA is 14:45.",
+    },
+    {
+        name = "natural field-label colon command",
+        input = "Skin colon diaphoretic.",
+        expected = "Skin: diaphoretic.",
+    },
+    {
+        name = "whisper comma before spoken colon is removed",
+        input = "Skin, colon diaphoretic.",
+        expected = "Skin: diaphoretic.",
+    },
+    {
+        name = "named anatomical colon noun is preserved",
+        input = "The sigmoid colon was normal.",
+        expected = "The sigmoid colon was normal.",
+    },
+    {
+        name = "natural period command with whisper punctuation",
+        input = "ST elevation in V1, V2, and V3 period. There are reciprocal changes.",
+        expected = "ST elevation in V1, V2, and V3. There are reciprocal changes.",
+    },
+    {
+        name = "whisper comma before spoken period is removed",
+        input = "ST elevation in V3, period.",
+        expected = "ST elevation in V3.",
+    },
+    {
+        name = "standard 12-lead and ST-segment hyphenation",
+        input = "12 lead ECG shows ST segment elevation.",
+        expected = "12-lead ECG shows ST-segment elevation.",
+    },
+    {
+        name = "adjacent duplicate ETA destination is collapsed",
+        input = "ETA to Virginia Mason. Virginia Mason is 16:58.",
+        expected = "ETA to Virginia Mason is 16:58.",
+    },
+    {
+        name = "different ETA sentence subject is preserved",
+        input = "ETA to Virginia Mason. Traffic is heavy.",
+        expected = "ETA to Virginia Mason. Traffic is heavy.",
+    },
+    {
+        name = "second live command sequence",
+        input = "oxygen saturation 97% on 2 liters, new line skin colon diaphoretic, in paragraph 12 lead ECG shows ST elevation in V1, V2, and V3 period.",
+        expected = "SpO2 97% 2 L/min\nSkin: diaphoretic\n\n12-lead ECG shows ST elevation in V1, V2, and V3.",
     },
     {
         name = "ordinary new line phrase is preserved",
