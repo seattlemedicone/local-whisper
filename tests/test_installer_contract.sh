@@ -46,6 +46,8 @@ require_text "$REPO_ROOT/install.sh" 'verify_whisper_model "$temporary_file" "$m
 require_text "$REPO_ROOT/install.sh" 'bash ./models/download-ggml-model.sh "$model" "$temporary_dir"'
 require_text "$REPO_ROOT/install.sh" 'Configured refinement model completed a local test inference'
 require_text "$REPO_ROOT/install.sh" 'ollama_model_installed "$refine_model"'
+require_text "$REPO_ROOT/install.sh" 'ollama show "$model"'
+reject_text "$REPO_ROOT/install.sh" "ollama list 2>/dev/null"
 require_text "$REPO_ROOT/install.sh" 'Ollama is registered to start automatically at login'
 require_text "$REPO_ROOT/install.sh" 'WhisperInstallationDiagnostics.microphone()'
 require_text "$REPO_ROOT/install.sh" 'configured_model="$(read_compact_file "$CONFIG_DIR/model")"'
@@ -147,6 +149,23 @@ fi
 
 printf '%s\n' "off" > "$FAKE_HOME/.local-whisper/refine"
 printf '%s\n' "custom:test" > "$FAKE_HOME/.local-whisper/refine_model"
+
+FAKE_OLLAMA_BIN="$TEST_ROOT/bin"
+mkdir -p "$FAKE_OLLAMA_BIN"
+printf '%s\n' \
+    '#!/usr/bin/env bash' \
+    '[[ "$1" == "show" && "$2" == "custom" ]]' \
+    > "$FAKE_OLLAMA_BIN/ollama"
+chmod +x "$FAKE_OLLAMA_BIN/ollama"
+if ! PATH="$FAKE_OLLAMA_BIN:$PATH" ollama_model_installed "custom"; then
+    echo "FAIL: untagged refinement model was not resolved through ollama show" >&2
+    exit 1
+fi
+if PATH="$FAKE_OLLAMA_BIN:$PATH" ollama_model_installed "invalid@model"; then
+    echo "FAIL: invalid refinement model name reached ollama show" >&2
+    exit 1
+fi
+
 ollama_model_installed() { return 1; }
 SELECTED_REFINE_STATE="$(CONFIG_DIR="$FAKE_HOME/.local-whisper" select_configured_refine_state)"
 SELECTED_REFINE_MODEL="$(CONFIG_DIR="$FAKE_HOME/.local-whisper" select_configured_refine_model "gemma4:e2b")"

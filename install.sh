@@ -61,7 +61,7 @@ valid_ollama_model_name() {
 ollama_model_installed() {
     local model="$1"
     valid_ollama_model_name "$model" && command -v ollama >/dev/null 2>&1 &&
-        ollama list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -Fxq "$model"
+        ollama show "$model" >/dev/null 2>&1
 }
 
 select_configured_refine_state() {
