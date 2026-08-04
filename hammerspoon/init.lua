@@ -262,6 +262,14 @@ local NO_CAPITALIZE_APPS = {
 -- Canonicalize complete spoken vital-sign sequences after model cleanup.
 local function applyVitalSignsFormatting(text)
     local saturationScalar = "[%+%-]?%d[%d%.,/]*"
+
+    -- Whisper often inserts natural filler words into dictated vital signs.
+    -- Remove them before unit normalization so phrases such as
+    -- "oxygen saturation is 98 percent" are consumed as one field.
+    text = text:gsub("([Bb]lood[ \t]+pressure)[ \t]+[Oo]f[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Rr]espirations?)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Oo]xygen[ \t]+saturation)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
+
     local function collapseSpacedSaturationRange(label)
         text = text:gsub(
             "(" .. label .. "[ \t]+)(" .. saturationScalar .. ")[ \t]+([%+%-])[ \t]+(" .. saturationScalar .. ")",
@@ -289,11 +297,6 @@ local function applyVitalSignsFormatting(text)
         local suffix = modality and (" " .. modality) or ""
         return "SpO2 " .. value .. "%" .. suffix .. punctuation
     end
-
-    -- Whisper often inserts natural filler words into dictated vital signs.
-    text = text:gsub("([Bb]lood[ \t]+pressure)[ \t]+[Oo]f[ \t]+(%d)", "%1 %2")
-    text = text:gsub("([Rr]espirations?)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
-    text = text:gsub("([Oo]xygen[ \t]+saturation)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
 
     -- Normalize an already abbreviated vital-sign sequence as well. This lets
     -- the deterministic formatter enforce the schema even when Whisper (or a

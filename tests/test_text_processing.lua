@@ -70,6 +70,11 @@ local acceptanceCases = {
         expected = "SpO2 98% RA",
     },
     {
+        name = "spoken percent oxygen saturation with filler on room air",
+        input = "oxygen saturation is 98 percent on room air",
+        expected = "SpO2 98% RA",
+    },
+    {
         name = "abbreviated saturation with spoken percent and room air",
         input = "BP 120/80 P 70 R 16 SpO2 98 percent on room air",
         expected = "BP 120/80 | P 70 | R 16 | SpO2 98% RA",
