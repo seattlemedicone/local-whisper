@@ -78,7 +78,7 @@ select_configured_refine_model() {
     local default_model="$1"
     local configured_model=""
     configured_model="$(read_compact_file "$CONFIG_DIR/refine_model")"
-    if ollama_model_installed "$configured_model"; then
+    if valid_ollama_model_name "$configured_model"; then
         printf '%s\n' "$configured_model"
     else
         printf '%s\n' "$default_model"

@@ -147,11 +147,18 @@ fi
 
 printf '%s\n' "off" > "$FAKE_HOME/.local-whisper/refine"
 printf '%s\n' "custom:test" > "$FAKE_HOME/.local-whisper/refine_model"
-ollama_model_installed() { [[ "$1" == "custom:test" ]]; }
+ollama_model_installed() { return 1; }
 SELECTED_REFINE_STATE="$(CONFIG_DIR="$FAKE_HOME/.local-whisper" select_configured_refine_state)"
 SELECTED_REFINE_MODEL="$(CONFIG_DIR="$FAKE_HOME/.local-whisper" select_configured_refine_model "gemma4:e2b")"
 if [[ "$SELECTED_REFINE_STATE" != "off" || "$SELECTED_REFINE_MODEL" != "custom:test" ]]; then
-    echo "FAIL: valid refinement preferences were not preserved" >&2
+    echo "FAIL: valid uninstalled refinement preferences were not preserved for provisioning" >&2
+    exit 1
+fi
+
+printf '%s\n' "invalid@model" > "$FAKE_HOME/.local-whisper/refine_model"
+SELECTED_REFINE_MODEL="$(CONFIG_DIR="$FAKE_HOME/.local-whisper" select_configured_refine_model "gemma4:e2b")"
+if [[ "$SELECTED_REFINE_MODEL" != "gemma4:e2b" ]]; then
+    echo "FAIL: invalid configured refinement model did not fall back to the default" >&2
     exit 1
 fi
 
