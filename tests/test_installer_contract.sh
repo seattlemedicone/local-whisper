@@ -48,6 +48,9 @@ require_text "$REPO_ROOT/install.sh" 'verify_whisper_model "$temporary_file" "$m
 require_text "$REPO_ROOT/install.sh" 'bash ./models/download-ggml-model.sh "$model" "$temporary_dir"'
 require_text "$REPO_ROOT/install.sh" 'Configured refinement model completed a local test inference'
 require_text "$REPO_ROOT/install.sh" 'ollama_model_installed "$refine_model"'
+require_text "$REPO_ROOT/install.sh" 'if [[ "$refine_state" == "off" ]]; then'
+require_text "$REPO_ROOT/install.sh" 'Guarded local refinement is disabled by user preference'
+reject_text "$REPO_ROOT/install.sh" 'if [[ "$refine_state" == "off" ]] && ollama_model_installed'
 require_text "$REPO_ROOT/install.sh" 'ollama show "$model"'
 reject_text "$REPO_ROOT/install.sh" "ollama list 2>/dev/null"
 require_text "$REPO_ROOT/install.sh" 'Ollama is registered to start automatically at login'

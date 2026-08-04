@@ -337,46 +337,51 @@ verify_installation() {
         failed=true
     fi
 
-    if command -v ollama &>/dev/null; then
-        ollama_bin="$(command -v ollama)"
-        ok "Ollama is installed"
-    else
-        error "Ollama is missing"
-        failed=true
-    fi
-
-    if curl -fsS --connect-timeout 2 --max-time 5 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
-        ok "Ollama service is running"
-    else
-        error "Ollama service is not reachable"
-        failed=true
-    fi
-
-    if command -v brew >/dev/null 2>&1 && brew services list 2>/dev/null |
-       awk '$1 == "ollama" && $2 == "started" {found=1} END {exit !found}'; then
-        ok "Ollama is registered to start automatically at login"
-    else
-        error "Ollama is not registered as a running login service"
-        failed=true
-    fi
-
     refine_state="$(read_compact_file "$CONFIG_DIR/refine")"
     refine_model="$(read_compact_file "$CONFIG_DIR/refine_model")"
-    if [[ -n "$ollama_bin" ]] && ollama_model_installed "$refine_model"; then
-        ok "Configured refinement model is installed: $refine_model"
-    else
-        error "Configured refinement model is missing: ${refine_model:-unset}"
-        failed=true
-    fi
+    if [[ "$refine_state" == "off" ]]; then
+        ok "Guarded local refinement is disabled by user preference"
+    elif [[ "$refine_state" == "on" ]]; then
+        if command -v ollama &>/dev/null; then
+            ollama_bin="$(command -v ollama)"
+            ok "Ollama is installed"
+        else
+            error "Ollama is missing"
+            failed=true
+        fi
 
-    if [[ "$refine_state" == "off" ]] && ollama_model_installed "$refine_model"; then
-        ok "Guarded local refinement is disabled by user preference (${refine_model})"
-    elif [[ "$refine_state" == "on" ]] && ollama_model_installed "$refine_model" &&
-         ollama_inference_ready "$refine_model"; then
-        ok "Configured refinement model completed a local test inference (${refine_model})"
-        ok "Guarded local refinement is enabled (${refine_model})"
+        if curl -fsS --connect-timeout 2 --max-time 5 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
+            ok "Ollama service is running"
+        else
+            error "Ollama service is not reachable"
+            failed=true
+        fi
+
+        if command -v brew >/dev/null 2>&1 && brew services list 2>/dev/null |
+           awk '$1 == "ollama" && $2 == "started" {found=1} END {exit !found}'; then
+            ok "Ollama is registered to start automatically at login"
+        else
+            error "Ollama is not registered as a running login service"
+            failed=true
+        fi
+
+        if [[ -n "$ollama_bin" ]] && ollama_model_installed "$refine_model"; then
+            ok "Configured refinement model is installed: $refine_model"
+        else
+            error "Configured refinement model is missing: ${refine_model:-unset}"
+            failed=true
+        fi
+
+        if [[ -n "$ollama_bin" ]] && ollama_model_installed "$refine_model" &&
+           ollama_inference_ready "$refine_model"; then
+            ok "Configured refinement model completed a local test inference (${refine_model})"
+            ok "Guarded local refinement is enabled (${refine_model})"
+        else
+            error "Guarded refinement model is not ready"
+            failed=true
+        fi
     else
-        error "Guarded refinement preference or configured model is invalid"
+        error "Guarded refinement preference is invalid: ${refine_state:-unset}"
         failed=true
     fi
 
