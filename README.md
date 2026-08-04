@@ -39,6 +39,17 @@ Voice commands are fully customizable — edit `~/.hammerspoon/local_whisper_act
 
 For a full guide on writing custom commands, see **[docs/VOICE_COMMANDS.md](docs/VOICE_COMMANDS.md)**.
 
+### Dictation formatting commands
+
+Formatting phrases use an explicit prefix so ordinary clinical wording is not mistaken for a command:
+
+- `format new line`
+- `format new paragraph`
+- `punctuation comma`, `punctuation colon`, or `punctuation semicolon`
+- `punctuation full stop`, `punctuation question mark`, or `punctuation exclamation mark`
+
+Whisper still infers ordinary sentence punctuation automatically; use these phrases only when you want to force a specific mark or line break.
+
 ## Requirements
 
 - macOS (Apple Silicon recommended — tested on M4)

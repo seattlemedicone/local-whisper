@@ -81,7 +81,7 @@ local acceptanceCases = {
     },
     {
         name = "spoken punctuation between vital fields",
-        input = "blood pressure 140 over 95 comma pulse 89 comma respirations 20 full stop oxygen saturation 98% on non-rebreather face mask",
+        input = "blood pressure 140 over 95 punctuation comma pulse 89 punctuation comma respirations 20 punctuation full stop oxygen saturation 98% on non-rebreather face mask",
         expected = "BP 140/95 | P 89 | R 20 | SpO2 98% NRFM",
     },
     {
@@ -111,8 +111,13 @@ local acceptanceCases = {
     },
     {
         name = "leading paragraph command",
-        input = "New paragraph, blood pressure 120 over 70 pulse 75 respirations 16 oxygen saturation 99% on room air",
+        input = "Format new paragraph, blood pressure 120 over 70 pulse 75 respirations 16 oxygen saturation 99% on room air",
         expected = "\n\nBP 120/70 | P 75 | R 16 | SpO2 99% RA",
+    },
+    {
+        name = "ordinary new line phrase is preserved",
+        input = "A new line was placed for norepinephrine.",
+        expected = "A new line was placed for norepinephrine.",
     },
     {
         name = "unrelated clinical prose remains unchanged",
@@ -144,7 +149,7 @@ local acceptedRefinements = {
     },
     {
         name = "spoken punctuation canonicalizes identically",
-        source = "Findings punctuation colon normal full stop Next sentence",
+        source = "Findings punctuation colon normal punctuation full stop Next sentence",
         candidate = "Findings: normal. Next sentence",
     },
     {
