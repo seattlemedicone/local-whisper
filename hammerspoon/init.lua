@@ -478,7 +478,11 @@ local function extractNumericFacts(text)
             end
             local value = text:sub(startIndex, i - 1):gsub("[%,%.]+$", "")
             value = value:gsub(",", "")
-            local sign = text:sub(startIndex - 1, startIndex - 1)
+            local prior = text:sub(startIndex - 1, startIndex - 1)
+            local beforePrior = text:sub(startIndex - 2, startIndex - 2)
+            local leadingDecimal = prior == "." and not beforePrior:match("%d")
+            if leadingDecimal then value = "0." .. value end
+            local sign = leadingDecimal and beforePrior or prior
             if sign == "+" or sign == "-" then value = sign .. value end
             table.insert(facts, value)
         else
@@ -594,6 +598,12 @@ local function extractProtectedFactSequence(text)
             end
             local value = text:sub(startIndex, i - 1):gsub("[%,%.]+$", "")
             value = value:gsub(",", "")
+            local prior = text:sub(startIndex - 1, startIndex - 1)
+            local beforePrior = text:sub(startIndex - 2, startIndex - 2)
+            local leadingDecimal = prior == "." and not beforePrior:match("%d")
+            if leadingDecimal then value = "0." .. value end
+            local sign = leadingDecimal and beforePrior or prior
+            if sign == "+" or sign == "-" then value = sign .. value end
             table.insert(facts, "number:" .. value)
         else
             i = i + 1

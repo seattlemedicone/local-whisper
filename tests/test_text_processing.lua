@@ -299,6 +299,18 @@ local rejectedRefinements = {
         candidate = "The blood type is o positive.",
         reason = "case-sensitive terms changed",
     },
+    {
+        name = "leading-decimal dose changed tenfold",
+        source = "Administer .5 mg naloxone.",
+        candidate = "Administer 5 mg naloxone.",
+        reason = "numeric facts changed",
+    },
+    {
+        name = "signed leading-decimal dose changed",
+        source = "The offset was -.5 units.",
+        candidate = "The offset was -5 units.",
+        reason = "numeric facts changed",
+    },
 }
 
 for _, case in ipairs(rejectedRefinements) do
