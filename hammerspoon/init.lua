@@ -346,6 +346,18 @@ local function applyVitalSignsFormatting(text)
         )
     end
 
+    -- Collapse spaces around a dictated range separator before matching the
+    -- complete EtCO2 expression. This keeps the unit outside both endpoints.
+    local etco2Scalar = "[%+%-]?%d[%d%.,/]*"
+    local function collapseSpacedEtCO2Range(label)
+        text = text:gsub(
+            "(" .. label .. "[ \t]+)(" .. etco2Scalar .. ")[ \t]+([%+%-])[ \t]+(" .. etco2Scalar .. ")",
+            "%1%2%3%4"
+        )
+    end
+    collapseSpacedEtCO2Range("[Ee][Tt][Cc][Oo]2")
+    collapseSpacedEtCO2Range("[Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2")
+
     -- Normalize the complete EtCO2 numeric expression before adding its unit.
     -- This avoids inserting units inside decimals, ranges, or fractions.
     local etco2Value = "[%+%-]?%d[%d%.,/%+%-]*"
@@ -549,13 +561,18 @@ local function extractNonAsciiBytes(text)
 end
 
 -- Ordinary sentence capitalization may change, but acronym-like terms can be
--- case-sensitive. Preserve all-uppercase words and words with any uppercase
--- letter after the first character; uncertain responses fall back to source.
+-- case-sensitive. Preserve all-uppercase words, words with any uppercase
+-- letter after the first character, and conventional title-case clinical
+-- abbreviations; uncertain responses fall back to source.
 local function extractCaseSensitiveTokens(text)
     local tokens = {}
+    local clinicalTitleCase = { Na = true, Ca = true, Cl = true }
     local normalized = removeClearlyDelimitedFillerPhrases(text)
     for token in normalized:gmatch("[%a][%a']*") do
-        if token:match("^[A-Z]+$") or token:sub(2):match("[A-Z]") then
+        if token:match("^[A-Z]+$")
+            or token:sub(2):match("[A-Z]")
+            or clinicalTitleCase[token]
+        then
             table.insert(tokens, token)
         end
     end

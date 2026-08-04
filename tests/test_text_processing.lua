@@ -75,6 +75,16 @@ local acceptanceCases = {
         expected = "EtCO2 35-40 mm Hg",
     },
     {
+        name = "spaced end tidal carbon dioxide range",
+        input = "EtCO2 35 - 40 mm Hg",
+        expected = "EtCO2 35-40 mm Hg",
+    },
+    {
+        name = "dictated spaced end tidal carbon dioxide range",
+        input = "end tidal CO2 35 - 40",
+        expected = "EtCO2 35-40 mm Hg",
+    },
+    {
         name = "decimal EtCO2 follows respirations without SpO2",
         input = "blood pressure 120 over 80 pulse 70 respirations 16 end tidal CO2 35,5",
         expected = "BP 120/80 | P 70 | R 16 | EtCO2 35,5 mm Hg",
@@ -312,6 +322,12 @@ local rejectedRefinements = {
         name = "single-letter clinical abbreviation changed",
         source = "The blood type is O positive.",
         candidate = "The blood type is o positive.",
+        reason = "case-sensitive terms changed",
+    },
+    {
+        name = "title-case clinical abbreviations changed",
+        source = "The Na was 135 and the Ca and Cl were measured.",
+        candidate = "The na was 135 and the ca and cl were measured.",
         reason = "case-sensitive terms changed",
     },
     {
