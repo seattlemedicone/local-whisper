@@ -20,6 +20,26 @@ local acceptanceCases = {
         expected = "BP 132/82 | P 88 | R 20 | SpO2 91% RA",
     },
     {
+        name = "is and are fillers across vital fields",
+        input = "blood pressure is 120 over 80 pulse is 70 respirations are 16 oxygen saturation is 98% on room air",
+        expected = "BP 120/80 | P 70 | R 16 | SpO2 98% RA",
+    },
+    {
+        name = "of fillers across vital fields",
+        input = "blood pressure of 120 over 80 pulse of 70 respirations of 16 oxygen saturation of 98% on room air",
+        expected = "BP 120/80 | P 70 | R 16 | SpO2 98% RA",
+    },
+    {
+        name = "conjunction before oxygen field",
+        input = "blood pressure 120 over 80 pulse 70 respirations 16 and oxygen saturation 98% on room air",
+        expected = "BP 120/80 | P 70 | R 16 | SpO2 98% RA",
+    },
+    {
+        name = "conjunction before end tidal field",
+        input = "oxygen saturation 98% on room air and end tidal CO2 35",
+        expected = "SpO2 98% RA | EtCO2 35 mm Hg",
+    },
+    {
         name = "full vital signs on non-rebreather",
         input = "blood pressure 140 over 95 pulse 89 respirations 20 oxygen saturation 98% on non-rebreather face mask",
         expected = "BP 140/95 | P 89 | R 20 | SpO2 98% NRFM",

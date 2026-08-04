@@ -267,7 +267,13 @@ local function applyVitalSignsFormatting(text)
     -- Remove them before unit normalization so phrases such as
     -- "oxygen saturation is 98 percent" are consumed as one field.
     text = text:gsub("([Bb]lood[ \t]+pressure)[ \t]+[Oo]f[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Bb]lood[ \t]+pressure)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Pp]ulse)[ \t]+[Oo]f[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Pp]ulse)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Rr]espirations?)[ \t]+[Oo]f[ \t]+(%d)", "%1 %2")
     text = text:gsub("([Rr]espirations?)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Rr]espirations?)[ \t]+[Aa]re[ \t]+(%d)", "%1 %2")
+    text = text:gsub("([Oo]xygen[ \t]+saturation)[ \t]+[Oo]f[ \t]+(%d)", "%1 %2")
     text = text:gsub("([Oo]xygen[ \t]+saturation)[ \t]+[Ii]s[ \t]+(%d)", "%1 %2")
 
     local function collapseSpacedSaturationRange(label)
@@ -296,6 +302,17 @@ local function applyVitalSignsFormatting(text)
         end
         local suffix = modality and (" " .. modality) or ""
         return "SpO2 " .. value .. "%" .. suffix .. punctuation
+    end
+
+    local function joinVitalFields(priorField, nextField)
+        text = text:gsub(
+            "(" .. priorField .. ")[,%.]?[ \t]+[Aa][Nn][Dd][ \t]+(" .. nextField .. ")",
+            "%1 | %2"
+        )
+        text = text:gsub(
+            "(" .. priorField .. ")[,%.]?[ \t]+(" .. nextField .. ")",
+            "%1 | %2"
+        )
     end
 
     -- Normalize an already abbreviated vital-sign sequence as well. This lets
@@ -420,10 +437,7 @@ local function applyVitalSignsFormatting(text)
         "SpO2[ \t]+" .. saturationValue .. "%%",
     }
     for _, nextField in ipairs(spO2Fields) do
-        text = text:gsub(
-            "(R[ \t]+%d+)[,%.]?[ \t]+(" .. nextField .. ")",
-            "%1 | %2"
-        )
+        joinVitalFields("R[ \t]+%d+", nextField)
     end
 
     -- Collapse spaces around a dictated range separator before matching the
@@ -491,15 +505,9 @@ local function applyVitalSignsFormatting(text)
         "SpO2[ \t]+" .. saturationValue .. "%%",
     }
     for _, priorField in ipairs(adjacentSpO2Fields) do
-        text = text:gsub(
-            "(" .. priorField .. ")[,%.]?[ \t]+(" .. etco2Field .. ")",
-            "%1 | %2"
-        )
+        joinVitalFields(priorField, etco2Field)
     end
-    text = text:gsub(
-        "(R[ \t]+%d+)[,%.]?[ \t]+(" .. etco2Field .. ")",
-        "%1 | %2"
-    )
+    joinVitalFields("R[ \t]+%d+", etco2Field)
 
     return text
 end
