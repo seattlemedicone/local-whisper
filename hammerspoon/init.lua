@@ -271,6 +271,14 @@ local function applyVitalSignsFormatting(text)
     collapseSpacedSaturationRange("[Oo]xygen[ \t]+saturation")
     collapseSpacedSaturationRange("[Ss][Pp][Oo]2")
     local saturationValue = "[%+%-]?%d[%d%.,/%+%-]*"
+    text = text:gsub(
+        "([Oo]xygen[ \t]+saturation[ \t]+)(" .. saturationValue .. ")[ \t]+[Pp]er[ \t]*cent",
+        "%1%2%%"
+    )
+    text = text:gsub(
+        "([Ss][Pp][Oo]2[ \t]+)(" .. saturationValue .. ")[ \t]+[Pp]er[ \t]*cent",
+        "%1%2%%"
+    )
     local function formatSaturation(value, modality)
         local punctuation = ""
         local last = value:sub(-1)

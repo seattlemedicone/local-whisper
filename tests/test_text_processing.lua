@@ -65,6 +65,16 @@ local acceptanceCases = {
         expected = "SpO2 95-98% RA",
     },
     {
+        name = "spoken percent oxygen saturation on room air",
+        input = "oxygen saturation 98 percent on room air",
+        expected = "SpO2 98% RA",
+    },
+    {
+        name = "abbreviated saturation with spoken percent and room air",
+        input = "BP 120/80 P 70 R 16 SpO2 98 percent on room air",
+        expected = "BP 120/80 | P 70 | R 16 | SpO2 98% RA",
+    },
+    {
         name = "partial vital signs do not append a dangling separator",
         input = "blood pressure 120 over 80 pulse 70 respirations 16. Condition stable.",
         expected = "BP 120/80 | P 70 | R 16. Condition stable.",

@@ -513,25 +513,6 @@ if [[ "$OLLAMA_READY" != true ]]; then
 fi
 ok "Ollama service is running"
 
-if ollama_model_installed "$OLLAMA_MODEL"; then
-    ok "Gemma model already downloaded: $OLLAMA_MODEL"
-else
-    info "Downloading $OLLAMA_MODEL (~7.2 GB). This can take several minutes..."
-    ollama pull "$OLLAMA_MODEL"
-fi
-
-if ! ollama_model_installed "$OLLAMA_MODEL"; then
-    error "Gemma model verification failed. Re-run this installer to try again."
-    exit 1
-fi
-
-info "Testing one local Gemma response..."
-if ! ollama_inference_ready; then
-    error "Gemma was downloaded but could not run. Restart the Mac and re-run ./install.sh."
-    exit 1
-fi
-ok "Gemma completed a local test inference"
-
 SELECTED_REFINE_STATE="$(select_configured_refine_state)"
 SELECTED_REFINE_MODEL="$(select_configured_refine_model "$OLLAMA_MODEL")"
 if [[ "$SELECTED_REFINE_STATE" != "on" ]]; then
@@ -540,10 +521,34 @@ fi
 if [[ "$SELECTED_REFINE_MODEL" != "$OLLAMA_MODEL" ]]; then
     ok "Preserving configured refinement model: $SELECTED_REFINE_MODEL"
 fi
-if [[ "$SELECTED_REFINE_STATE" == "on" ]] && ! ollama_inference_ready "$SELECTED_REFINE_MODEL"; then
-    error "Configured refinement model could not run: $SELECTED_REFINE_MODEL"
+
+if ollama_model_installed "$SELECTED_REFINE_MODEL"; then
+    ok "Refinement model already downloaded: $SELECTED_REFINE_MODEL"
+else
+    if [[ "$SELECTED_REFINE_MODEL" == "$OLLAMA_MODEL" ]]; then
+        info "Downloading $SELECTED_REFINE_MODEL (~7.2 GB). This can take several minutes..."
+    else
+        info "Downloading configured refinement model: $SELECTED_REFINE_MODEL"
+    fi
+    ollama pull "$SELECTED_REFINE_MODEL"
+fi
+
+if ! ollama_model_installed "$SELECTED_REFINE_MODEL"; then
+    error "Refinement model verification failed. Re-run this installer to try again."
     exit 1
 fi
+
+if [[ "$SELECTED_REFINE_STATE" == "on" ]]; then
+    info "Testing one local refinement response..."
+    if ! ollama_inference_ready "$SELECTED_REFINE_MODEL"; then
+        error "The configured refinement model could not run. Restart the Mac and re-run ./install.sh."
+        exit 1
+    fi
+    ok "Configured refinement model completed a local test inference"
+else
+    ok "Refinement model installed; inference skipped while refinement is disabled"
+fi
+
 printf '%s\n' "$SELECTED_REFINE_STATE" > "$CONFIG_DIR/refine"
 printf '%s\n' "$SELECTED_REFINE_MODEL" > "$CONFIG_DIR/refine_model"
 chmod 600 "$CONFIG_DIR/refine" "$CONFIG_DIR/refine_model"
