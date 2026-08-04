@@ -370,9 +370,24 @@ local acceptanceCases = {
         expected = "The sigmoid colon was normal.",
     },
     {
+        name = "unqualified anatomical colon noun is preserved",
+        input = "The patient has a history of colon cancer.",
+        expected = "The patient has a history of colon cancer.",
+    },
+    {
         name = "natural period command with whisper punctuation",
         input = "ST elevation in V1, V2, and V3 period. There are reciprocal changes.",
         expected = "ST elevation in V1, V2, and V3. There are reciprocal changes.",
+    },
+    {
+        name = "clinical period noun at sentence end is preserved",
+        input = "The patient had a prolonged postictal period.",
+        expected = "The patient had a prolonged postictal period.",
+    },
+    {
+        name = "explicit period command remains available",
+        input = "The patient improved punctuation period Next sentence",
+        expected = "The patient improved. Next sentence",
     },
     {
         name = "whisper comma before spoken period is removed",

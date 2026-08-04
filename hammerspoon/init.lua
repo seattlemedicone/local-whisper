@@ -579,6 +579,7 @@ local function applyDictationCommands(text)
     replaceCommand("[Ff][Oo][Rr][Mm][Aa][Tt][ \t]+" .. newParagraph, "\n\n")
     replaceCommand("[Ff][Oo][Rr][Mm][Aa][Tt][ \t]+" .. newLine, "\n")
     replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Ff][Uu][Ll][Ll][ \t]+[Ss][Tt][Oo][Pp]", ". ")
+    replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Pp][Ee][Rr][Ii][Oo][Dd]", ". ")
     replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Qq][Uu][Ee][Ss][Tt][Ii][Oo][Nn][ \t]+[Mm][Aa][Rr][Kk]", "? ")
     replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Ee][Xx][Cc][Ll][Aa][Mm][Aa][Tt][Ii][Oo][Nn][ \t]+[Pp][Oo][Ii][Nn][Tt]", "! ")
     replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Ee][Xx][Cc][Ll][Aa][Mm][Aa][Tt][Ii][Oo][Nn][ \t]+[Mm][Aa][Rr][Kk]", "! ")
@@ -635,21 +636,31 @@ local function applyDictationCommands(text)
     -- after punctuation. Restrict the correction to that delimiter context
     -- so ordinary phrases such as "a common medication" remain untouched.
     text = text:gsub("([,;])[ \t]+[Cc][Oo][Mm][Mm][Oo][Nn][ \t]+", "%1 ")
-    -- Natural "colon" is useful for field labels but is also an anatomical
-    -- noun. Shield determiner-led and named anatomical uses before replacing
-    -- the remaining standalone command.
-    text = text:gsub("([Tt][Hh][Ee][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
-    text = text:gsub("([Aa][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
-    text = text:gsub("([Ss][Ii][Gg][Mm][Oo][Ii][Dd][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
-    text = text:gsub("([Aa][Ss][Cc][Ee][Nn][Dd][Ii][Nn][Gg][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
-    text = text:gsub("([Dd][Ee][Ss][Cc][Ee][Nn][Dd][Ii][Nn][Gg][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
-    text = text:gsub("([Tt][Rr][Aa][Nn][Ss][Vv][Ee][Rr][Ss][Ee][ \t]+)[Cc][Oo][Ll][Oo][Nn]%f[%A]", "%1\28")
-    replaceCommand("[Cc][Oo][Ll][Oo][Nn]", ": ")
+    -- Natural "colon" is limited to known field labels because colon is also
+    -- a common anatomical noun in clinical prose.
+    local spokenColonLabels = {
+        "[Ss][Kk][Ii][Nn]",
+        "[Pp][Uu][Pp][Ii][Ll][Ss]",
+        "[Ll][Uu][Nn][Gg][Ss]",
+        "[Ll][Uu][Nn][Gg][ \t]+[Ss][Oo][Uu][Nn][Dd][Ss]",
+        "[Aa][Ss][Ss][Ee][Ss][Ss][Mm][Ee][Nn][Tt]",
+        "[Ii][Mm][Pp][Rr][Ee][Ss][Ss][Ii][Oo][Nn]",
+        "[Pp][Ll][Aa][Nn]",
+        "[Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]",
+        "[Vv][Ii][Tt][Aa][Ll][Ss]",
+        "[Mm][Ee][Dd][Ii][Cc][Aa][Tt][Ii][Oo][Nn][Ss]",
+    }
+    local spokenColon = "[Cc][Oo][Ll][Oo][Nn]%f[%A]"
+    for _, label in ipairs(spokenColonLabels) do
+        text = text:gsub("^(" .. label .. ")[,;]?[ \t]+" .. spokenColon, "%1:")
+        text = text:gsub("(\n)(" .. label .. ")[,;]?[ \t]+" .. spokenColon, "%1%2:")
+        text = text:gsub("([%.%!%?][ \t]+)(" .. label .. ")[,;]?[ \t]+" .. spokenColon, "%1%2:")
+    end
     text = text:gsub("(%d)[ \t]+[Cc][Oo][Ll][Oo][Nn][ \t]+(%d)", "%1:%2")
-    -- A dictated period that Whisper itself terminates with punctuation is
-    -- unambiguous; ordinary phrases such as "period of apnea" are preserved.
-    text = text:gsub("[ \t]+[Pp][Ee][Rr][Ii][Oo][Dd][%.%,][ \t]*", ". ")
-    text = text:gsub("\28", "colon")
+    -- A natural period cue is accepted after a numeric/lead value. Other
+    -- contexts require "punctuation period" so clinical nouns such as
+    -- "postictal period" remain intact.
+    text = text:gsub("(%d)[,;:]?[ \t]+[Pp][Ee][Rr][Ii][Oo][Dd][%.%,][ \t]*", "%1. ")
     text = text:gsub("\29", "comma")
 
     -- Whisper may add its own delimiter before also emitting the spoken

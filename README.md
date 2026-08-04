@@ -50,8 +50,9 @@ Natural formatting phrases work when spoken as a distinct dictation cue:
 
 The legacy explicit forms (`format new line`, `format new paragraph`, and
 `punctuation comma`) also remain available. Ambiguous clinical nouns such as
-`period` and `colon` require the `punctuation` prefix unless the colon is between
-clock digits. Whisper still infers ordinary sentence punctuation automatically.
+`period` and `colon` require the `punctuation` prefix unless the period follows a
+numeric/lead value or the colon follows a recognized field label or appears
+between clock digits. Whisper still infers ordinary sentence punctuation automatically.
 
 ## Requirements
 
