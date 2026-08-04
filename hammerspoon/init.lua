@@ -348,7 +348,7 @@ local function applyVitalSignsFormatting(text)
 
     -- Normalize optional end-tidal CO2 and add its separator only when needed.
     text = text:gsub(
-        "([Ee][Tt][Cc][Oo]2[ \t]+%d+%.%d+)[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
+        "([Ee][Tt][Cc][Oo]2[ \t]+%d+[%.,]%d+)[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
         "%1"
     )
     text = text:gsub(
@@ -356,7 +356,7 @@ local function applyVitalSignsFormatting(text)
         "%1"
     )
     text = text:gsub(
-        "([Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+%d+%.%d+)[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
+        "([Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+%d+[%.,]%d+)[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
         "%1"
     )
     text = text:gsub(
@@ -364,7 +364,7 @@ local function applyVitalSignsFormatting(text)
         "%1"
     )
     text = text:gsub(
-        "[Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+(%d+%.%d+)",
+        "[Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+(%d+[%.,]%d+)",
         "EtCO2 %1"
     )
     text = text:gsub(
@@ -372,17 +372,17 @@ local function applyVitalSignsFormatting(text)
         "EtCO2 %1"
     )
     text = text:gsub(
-        "[Ee][Tt][Cc][Oo]2[ \t]+(%d+)([%.]?)(%d*)",
-        function(whole, decimalPoint, fraction)
-            if decimalPoint == "." and fraction == "" then
-                return "EtCO2 " .. whole .. " mm Hg."
+        "[Ee][Tt][Cc][Oo]2[ \t]+(%d+)([%.,]?)(%d*)",
+        function(whole, decimalSeparator, fraction)
+            if decimalSeparator ~= "" and fraction == "" then
+                return "EtCO2 " .. whole .. " mm Hg" .. decimalSeparator
             end
             local value = whole
-            if fraction ~= "" then value = value .. "." .. fraction end
+            if fraction ~= "" then value = value .. decimalSeparator .. fraction end
             return "EtCO2 " .. value .. " mm Hg"
         end
     )
-    local etco2Field = "EtCO2[ \t]+%d+[%.]?%d*[ \t]+mm[ \t]+Hg"
+    local etco2Field = "EtCO2[ \t]+%d+[%.,]?%d*[ \t]+mm[ \t]+Hg"
     local adjacentSpO2Fields = {
         "SpO2[ \t]+%d+%%[ \t]+%d+[ \t]+L/min[ \t]+NC",
         "SpO2[ \t]+%d+%%[ \t]+RA",
@@ -479,8 +479,8 @@ local function extractNumericFacts(text)
             local value = text:sub(startIndex, i - 1):gsub("[%,%.]+$", "")
             local prior = text:sub(startIndex - 1, startIndex - 1)
             local beforePrior = text:sub(startIndex - 2, startIndex - 2)
-            local leadingDecimal = prior == "." and not beforePrior:match("%d")
-            if leadingDecimal then value = "0." .. value end
+            local leadingDecimal = (prior == "." or prior == ",") and not beforePrior:match("%d")
+            if leadingDecimal then value = "0" .. prior .. value end
             local sign = leadingDecimal and beforePrior or prior
             if sign == "+" or sign == "-" then value = sign .. value end
             table.insert(facts, value)
@@ -612,8 +612,8 @@ local function extractProtectedFactSequence(text)
             local value = text:sub(startIndex, i - 1):gsub("[%,%.]+$", "")
             local prior = text:sub(startIndex - 1, startIndex - 1)
             local beforePrior = text:sub(startIndex - 2, startIndex - 2)
-            local leadingDecimal = prior == "." and not beforePrior:match("%d")
-            if leadingDecimal then value = "0." .. value end
+            local leadingDecimal = (prior == "." or prior == ",") and not beforePrior:match("%d")
+            if leadingDecimal then value = "0" .. prior .. value end
             local sign = leadingDecimal and beforePrior or prior
             if sign == "+" or sign == "-" then value = sign .. value end
             table.insert(facts, "number:" .. value)

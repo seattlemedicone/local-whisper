@@ -65,6 +65,11 @@ local acceptanceCases = {
         expected = "EtCO2 35.5 mm Hg",
     },
     {
+        name = "decimal-comma end tidal carbon dioxide",
+        input = "EtCO2 35,5 mm Hg",
+        expected = "EtCO2 35,5 mm Hg",
+    },
+    {
         name = "already abbreviated vital signs gain canonical separators",
         input = "BP 132/82 P 88 R 20 SpO2 98% RA EtCO2 35",
         expected = "BP 132/82 | P 88 | R 20 | SpO2 98% RA | EtCO2 35 mm Hg",
@@ -321,6 +326,18 @@ local rejectedRefinements = {
         name = "decimal comma changed tenfold",
         source = "Administer 1,5 mg naloxone.",
         candidate = "Administer 15 mg naloxone.",
+        reason = "numeric facts changed",
+    },
+    {
+        name = "leading decimal comma changed tenfold",
+        source = "Administer ,5 mg naloxone.",
+        candidate = "Administer 5 mg naloxone.",
+        reason = "numeric facts changed",
+    },
+    {
+        name = "signed leading decimal comma changed",
+        source = "The offset was -,5 units.",
+        candidate = "The offset was -5 units.",
         reason = "numeric facts changed",
     },
 }
