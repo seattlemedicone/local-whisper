@@ -54,6 +54,37 @@ select_configured_whisper_model() {
     fi
 }
 
+valid_ollama_model_name() {
+    [[ "$1" =~ ^[A-Za-z0-9._:/-]+$ ]]
+}
+
+ollama_model_installed() {
+    local model="$1"
+    valid_ollama_model_name "$model" && command -v ollama >/dev/null 2>&1 &&
+        ollama list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -Fxq "$model"
+}
+
+select_configured_refine_state() {
+    local configured_state=""
+    configured_state="$(read_compact_file "$CONFIG_DIR/refine")"
+    if [[ "$configured_state" == "on" || "$configured_state" == "off" ]]; then
+        printf '%s\n' "$configured_state"
+    else
+        printf '%s\n' "on"
+    fi
+}
+
+select_configured_refine_model() {
+    local default_model="$1"
+    local configured_model=""
+    configured_model="$(read_compact_file "$CONFIG_DIR/refine_model")"
+    if ollama_model_installed "$configured_model"; then
+        printf '%s\n' "$configured_model"
+    else
+        printf '%s\n' "$default_model"
+    fi
+}
+
 find_hs_bin() {
     local candidate
     for candidate in \
@@ -139,9 +170,11 @@ download_model() {
 }
 
 ollama_inference_ready() {
+    local model="${1:-$OLLAMA_MODEL}"
+    valid_ollama_model_name "$model" || return 1
     curl -fsS --connect-timeout 3 --max-time 180 \
         -H 'Content-Type: application/json' \
-        --data-binary "{\"model\":\"${OLLAMA_MODEL}\",\"prompt\":\"Reply OK.\",\"stream\":false,\"think\":false,\"keep_alive\":\"5m\",\"options\":{\"temperature\":0,\"num_predict\":1}}" \
+        --data-binary "{\"model\":\"${model}\",\"prompt\":\"Reply OK.\",\"stream\":false,\"think\":false,\"keep_alive\":\"5m\",\"options\":{\"temperature\":0,\"num_predict\":1}}" \
         http://127.0.0.1:11434/api/generate 2>/dev/null |
         grep -Fq '"done":true'
 }
@@ -197,6 +230,8 @@ verify_installation() {
     local ollama_bin=""
     local hs_bin=""
     local ffmpeg_bin=""
+    local refine_model=""
+    local refine_state=""
 
     echo -e "${BOLD}Verifying local-whisper installation${NC}"
 
@@ -304,7 +339,7 @@ verify_installation() {
         failed=true
     fi
 
-    if [[ -n "$ollama_bin" ]] && "$ollama_bin" list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -Fxq "$OLLAMA_MODEL"; then
+    if [[ -n "$ollama_bin" ]] && ollama_model_installed "$OLLAMA_MODEL"; then
         ok "Gemma model is installed: $OLLAMA_MODEL"
     else
         error "Gemma model is missing: $OLLAMA_MODEL"
@@ -318,11 +353,15 @@ verify_installation() {
         failed=true
     fi
 
-    if [[ "$(read_compact_file "$CONFIG_DIR/refine")" == "on" ]] &&
-       [[ "$(read_compact_file "$CONFIG_DIR/refine_model")" == "$OLLAMA_MODEL" ]]; then
-        ok "Guarded Gemma refinement is enabled"
+    refine_state="$(read_compact_file "$CONFIG_DIR/refine")"
+    refine_model="$(read_compact_file "$CONFIG_DIR/refine_model")"
+    if [[ "$refine_state" == "off" ]] && ollama_model_installed "$refine_model"; then
+        ok "Guarded local refinement is disabled by user preference (${refine_model})"
+    elif [[ "$refine_state" == "on" ]] && ollama_model_installed "$refine_model" &&
+         ollama_inference_ready "$refine_model"; then
+        ok "Guarded local refinement is enabled (${refine_model})"
     else
-        error "Guarded Gemma refinement is not enabled"
+        error "Guarded refinement preference or configured model is invalid"
         failed=true
     fi
 
@@ -480,14 +519,14 @@ if [[ "$OLLAMA_READY" != true ]]; then
 fi
 ok "Ollama service is running"
 
-if ollama list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -Fxq "$OLLAMA_MODEL"; then
+if ollama_model_installed "$OLLAMA_MODEL"; then
     ok "Gemma model already downloaded: $OLLAMA_MODEL"
 else
     info "Downloading $OLLAMA_MODEL (~7.2 GB). This can take several minutes..."
     ollama pull "$OLLAMA_MODEL"
 fi
 
-if ! ollama list 2>/dev/null | awk 'NR > 1 {print $1}' | grep -Fxq "$OLLAMA_MODEL"; then
+if ! ollama_model_installed "$OLLAMA_MODEL"; then
     error "Gemma model verification failed. Re-run this installer to try again."
     exit 1
 fi
@@ -499,10 +538,26 @@ if ! ollama_inference_ready; then
 fi
 ok "Gemma completed a local test inference"
 
-printf '%s\n' "on" > "$CONFIG_DIR/refine"
-printf '%s\n' "$OLLAMA_MODEL" > "$CONFIG_DIR/refine_model"
+SELECTED_REFINE_STATE="$(select_configured_refine_state)"
+SELECTED_REFINE_MODEL="$(select_configured_refine_model "$OLLAMA_MODEL")"
+if [[ "$SELECTED_REFINE_STATE" != "on" ]]; then
+    ok "Preserving disabled refinement preference"
+fi
+if [[ "$SELECTED_REFINE_MODEL" != "$OLLAMA_MODEL" ]]; then
+    ok "Preserving configured refinement model: $SELECTED_REFINE_MODEL"
+fi
+if [[ "$SELECTED_REFINE_STATE" == "on" ]] && ! ollama_inference_ready "$SELECTED_REFINE_MODEL"; then
+    error "Configured refinement model could not run: $SELECTED_REFINE_MODEL"
+    exit 1
+fi
+printf '%s\n' "$SELECTED_REFINE_STATE" > "$CONFIG_DIR/refine"
+printf '%s\n' "$SELECTED_REFINE_MODEL" > "$CONFIG_DIR/refine_model"
 chmod 600 "$CONFIG_DIR/refine" "$CONFIG_DIR/refine_model"
-ok "Guarded Gemma refinement enabled ($OLLAMA_MODEL)"
+if [[ "$SELECTED_REFINE_STATE" == "on" ]]; then
+    ok "Guarded local refinement enabled ($SELECTED_REFINE_MODEL)"
+else
+    ok "Guarded local refinement remains disabled"
+fi
 
 # ─── Step 6: Setup (permissions, trigger key, audio device, HS CLI) ─────────
 echo ""

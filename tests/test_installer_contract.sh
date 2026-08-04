@@ -32,8 +32,13 @@ require_text "$REPO_ROOT/install.sh" 'OLLAMA_MODEL="gemma4:e2b"'
 require_text "$REPO_ROOT/install.sh" 'BREW_FORMULAE=(ffmpeg cmake git ollama)'
 require_text "$REPO_ROOT/install.sh" 'brew services start ollama'
 require_text "$REPO_ROOT/install.sh" 'ollama pull "$OLLAMA_MODEL"'
-require_text "$REPO_ROOT/install.sh" 'printf '\''%s\n'\'' "on" > "$CONFIG_DIR/refine"'
-require_text "$REPO_ROOT/install.sh" 'printf '\''%s\n'\'' "$OLLAMA_MODEL" > "$CONFIG_DIR/refine_model"'
+require_text "$REPO_ROOT/install.sh" 'SELECTED_REFINE_STATE="$(select_configured_refine_state)"'
+require_text "$REPO_ROOT/install.sh" 'SELECTED_REFINE_MODEL="$(select_configured_refine_model "$OLLAMA_MODEL")"'
+require_text "$REPO_ROOT/install.sh" 'printf '\''%s\n'\'' "$SELECTED_REFINE_STATE" > "$CONFIG_DIR/refine"'
+require_text "$REPO_ROOT/install.sh" 'printf '\''%s\n'\'' "$SELECTED_REFINE_MODEL" > "$CONFIG_DIR/refine_model"'
+require_text "$REPO_ROOT/install.sh" 'ollama_inference_ready "$refine_model"'
+reject_text "$REPO_ROOT/install.sh" 'printf '\''%s\n'\'' "on" > "$CONFIG_DIR/refine"'
+reject_text "$REPO_ROOT/install.sh" 'printf '\''%s\n'\'' "$OLLAMA_MODEL" > "$CONFIG_DIR/refine_model"'
 require_text "$REPO_ROOT/install.sh" 'if [[ "${1:-}" == "--verify" ]]'
 require_text "$REPO_ROOT/install.sh" 'install_hammerspoon_config "$SCRIPT_DIR/hammerspoon/init.lua" "$HAMMERSPOON_DIR/init.lua"'
 require_text "$REPO_ROOT/install.sh" 'Guarded Hammerspoon runtime is loaded'
@@ -136,6 +141,16 @@ SELECTED_MODEL="$(
 )"
 if [[ "$SELECTED_MODEL" != "test.en" ]]; then
     echo "FAIL: valid configured Whisper model was not preserved" >&2
+    exit 1
+fi
+
+printf '%s\n' "off" > "$FAKE_HOME/.local-whisper/refine"
+printf '%s\n' "custom:test" > "$FAKE_HOME/.local-whisper/refine_model"
+ollama_model_installed() { [[ "$1" == "custom:test" ]]; }
+SELECTED_REFINE_STATE="$(CONFIG_DIR="$FAKE_HOME/.local-whisper" select_configured_refine_state)"
+SELECTED_REFINE_MODEL="$(CONFIG_DIR="$FAKE_HOME/.local-whisper" select_configured_refine_model "gemma4:e2b")"
+if [[ "$SELECTED_REFINE_STATE" != "off" || "$SELECTED_REFINE_MODEL" != "custom:test" ]]; then
+    echo "FAIL: valid refinement preferences were not preserved" >&2
     exit 1
 fi
 
