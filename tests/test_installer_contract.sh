@@ -148,9 +148,20 @@ if ! cmp -s "$REPO_ROOT/vocabulary/ems_prompt.txt" "$FAKE_HOME/.local-whisper/pr
     exit 1
 fi
 printf '%s\n' "User-specific vocabulary" > "$FAKE_HOME/.local-whisper/prompt"
+chmod 644 "$FAKE_HOME/.local-whisper/prompt"
 install_default_prompt "$REPO_ROOT/vocabulary/ems_prompt.txt" "$FAKE_HOME/.local-whisper/prompt"
 if [[ "$(cat "$FAKE_HOME/.local-whisper/prompt")" != "User-specific vocabulary" ]]; then
     echo "FAIL: existing custom vocabulary prompt was overwritten" >&2
+    exit 1
+fi
+if [[ "$(stat -f '%Lp' "$FAKE_HOME/.local-whisper/prompt")" != "600" ]]; then
+    echo "FAIL: existing custom vocabulary prompt permissions were not tightened" >&2
+    exit 1
+fi
+printf '' > "$FAKE_HOME/.local-whisper/prompt"
+install_default_prompt "$REPO_ROOT/vocabulary/ems_prompt.txt" "$FAKE_HOME/.local-whisper/prompt"
+if ! cmp -s "$REPO_ROOT/vocabulary/ems_prompt.txt" "$FAKE_HOME/.local-whisper/prompt"; then
+    echo "FAIL: empty vocabulary prompt was not repaired" >&2
     exit 1
 fi
 

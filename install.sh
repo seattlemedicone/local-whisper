@@ -228,9 +228,11 @@ is_guarded_hammerspoon_config() {
 install_default_prompt() {
     local source_file="$1"
     local target_file="$2"
-    if [[ -e "$target_file" ]]; then
+    if [[ -f "$target_file" && -s "$target_file" ]]; then
+        chmod 600 "$target_file"
         return 0
     fi
+    [[ ! -e "$target_file" || -f "$target_file" ]] || return 1
     [[ -s "$source_file" ]] || return 1
     cp "$source_file" "$target_file"
     chmod 600 "$target_file"
@@ -490,10 +492,11 @@ mkdir -p "$CONFIG_DIR"
 chmod 700 "$CONFIG_DIR"
 ok "Config directory: $CONFIG_DIR"
 
-if [[ -e "$CONFIG_DIR/prompt" ]]; then
+if [[ -f "$CONFIG_DIR/prompt" && -s "$CONFIG_DIR/prompt" ]]; then
+    chmod 600 "$CONFIG_DIR/prompt"
     ok "Preserving existing custom vocabulary prompt"
 elif install_default_prompt "$DEFAULT_MEDICAL_PROMPT" "$CONFIG_DIR/prompt"; then
-    ok "Local EMS vocabulary prompt installed"
+    ok "Local EMS vocabulary prompt installed or repaired"
 else
     error "Bundled EMS vocabulary prompt is missing"
     exit 1
