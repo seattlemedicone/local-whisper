@@ -42,6 +42,18 @@ read_compact_file() {
     tr -d '[:space:]' < "$file"
 }
 
+select_configured_whisper_model() {
+    local default_model="$1"
+    local configured_model=""
+    configured_model="$(read_compact_file "$CONFIG_DIR/model")"
+    if [[ "$configured_model" =~ ^[A-Za-z0-9._-]+$ ]] &&
+       verify_whisper_model "$WHISPER_CPP_DIR/models/ggml-${configured_model}.bin" 1; then
+        printf '%s\n' "$configured_model"
+    else
+        printf '%s\n' "$default_model"
+    fi
+}
+
 find_hs_bin() {
     local candidate
     for candidate in \
@@ -428,10 +440,14 @@ ok "Config directory: $CONFIG_DIR"
 
 install_hammerspoon_config "$SCRIPT_DIR/hammerspoon/init.lua" "$HAMMERSPOON_DIR/init.lua"
 
+SELECTED_WHISPER_MODEL="$(select_configured_whisper_model "$WHISPER_MODEL")"
+if [[ "$SELECTED_WHISPER_MODEL" != "$WHISPER_MODEL" ]]; then
+    ok "Preserving configured Whisper model: $SELECTED_WHISPER_MODEL"
+fi
 printf '%s\n' "en" > "$CONFIG_DIR/lang"
-printf '%s\n' "$WHISPER_MODEL" > "$CONFIG_DIR/model"
+printf '%s\n' "$SELECTED_WHISPER_MODEL" > "$CONFIG_DIR/model"
 chmod 600 "$CONFIG_DIR/lang" "$CONFIG_DIR/model"
-ok "English dictation configured (${WHISPER_MODEL})"
+ok "English dictation configured (${SELECTED_WHISPER_MODEL})"
 
 # Install example voice commands if user doesn't have a config yet
 if [[ ! -f "$HAMMERSPOON_DIR/local_whisper_actions.lua" ]]; then

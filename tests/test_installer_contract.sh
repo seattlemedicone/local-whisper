@@ -44,6 +44,8 @@ require_text "$REPO_ROOT/install.sh" 'Ollama is registered to start automaticall
 require_text "$REPO_ROOT/install.sh" 'WhisperInstallationDiagnostics.microphone()'
 require_text "$REPO_ROOT/install.sh" 'configured_model="$(read_compact_file "$CONFIG_DIR/model")"'
 require_text "$REPO_ROOT/install.sh" 'verify_whisper_model "$WHISPER_CPP_DIR/models/ggml-${configured_model}.bin" 1'
+require_text "$REPO_ROOT/install.sh" 'SELECTED_WHISPER_MODEL="$(select_configured_whisper_model "$WHISPER_MODEL")"'
+require_text "$REPO_ROOT/install.sh" 'printf '\''%s\n'\'' "$SELECTED_WHISPER_MODEL" > "$CONFIG_DIR/model"'
 reject_text "$REPO_ROOT/install.sh" '[[ "$(read_compact_file "$CONFIG_DIR/model")" == "$WHISPER_MODEL" ]]'
 reject_text "$REPO_ROOT/install.sh" 'WHISPER_MULTILINGUAL_MODEL'
 
@@ -125,6 +127,17 @@ printf 'bad' > "$FAKE_WHISPER/models/ggml-test.en.bin"
 
 HOME="$FAKE_HOME" WHISPER_CPP_DIR="$FAKE_WHISPER" \
     download_model "test.en" "atomic installer test" "small" 10 >/dev/null
+
+mkdir -p "$FAKE_HOME/.local-whisper"
+printf '%s\n' "test.en" > "$FAKE_HOME/.local-whisper/model"
+SELECTED_MODEL="$(
+    CONFIG_DIR="$FAKE_HOME/.local-whisper" WHISPER_CPP_DIR="$FAKE_WHISPER" \
+        select_configured_whisper_model "base.en"
+)"
+if [[ "$SELECTED_MODEL" != "test.en" ]]; then
+    echo "FAIL: valid configured Whisper model was not preserved" >&2
+    exit 1
+fi
 
 if [[ "$(cat "$FAKE_WHISPER/models/ggml-test.en.bin")" != "complete-model-payload" ]]; then
     echo "FAIL: atomic model download did not install the verified replacement" >&2

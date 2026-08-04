@@ -25,6 +25,11 @@ local acceptanceCases = {
         expected = "BP 140/95 | P 89 | R 20 | SpO2 98% NRFM",
     },
     {
+        name = "full vital signs without oxygen modality",
+        input = "blood pressure 120 over 80 pulse 70 respirations 16 oxygen saturation 98%",
+        expected = "BP 120/80 | P 70 | R 16 | SpO2 98%",
+    },
+    {
         name = "supplemental oxygen and end tidal carbon dioxide",
         input = "blood pressure 132 over 82 pulse 88 respirations 20 oxygen saturation 98% on 2 liters per minute nasal cannula end tidal CO2 35",
         expected = "BP 132/82 | P 88 | R 20 | SpO2 98% 2 L/min NC | EtCO2 35 mm Hg",
@@ -33,6 +38,11 @@ local acceptanceCases = {
         name = "standalone oxygen saturation on room air",
         input = "oxygen saturation 91% on room air",
         expected = "SpO2 91% RA",
+    },
+    {
+        name = "standalone oxygen saturation without modality",
+        input = "oxygen saturation 91%",
+        expected = "SpO2 91%",
     },
     {
         name = "partial vital signs do not append a dangling separator",

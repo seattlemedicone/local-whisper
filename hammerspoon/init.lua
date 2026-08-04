@@ -330,6 +330,12 @@ local function applyVitalSignsFormatting(text)
         "[Rr]oom[ \t]+air"
     text = text:gsub(roomAirWithoutOnPattern, "SpO2 %1%% RA")
 
+    -- Delivery method is optional. Run this fallback after the specific
+    -- modality patterns so a complete saturation value is still canonical.
+    local saturationOnlyPattern =
+        "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?"
+    text = text:gsub(saturationOnlyPattern, "SpO2 %1%%")
+
     -- Add the separator only when a recognized oxygen field immediately
     -- follows respirations. Sentence punctuation remains untouched otherwise.
     local spO2Fields = {
