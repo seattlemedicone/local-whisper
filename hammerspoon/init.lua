@@ -477,7 +477,6 @@ local function extractNumericFacts(text)
                 i = i + 1
             end
             local value = text:sub(startIndex, i - 1):gsub("[%,%.]+$", "")
-            value = value:gsub(",", "")
             local prior = text:sub(startIndex - 1, startIndex - 1)
             local beforePrior = text:sub(startIndex - 2, startIndex - 2)
             local leadingDecimal = prior == "." and not beforePrior:match("%d")
@@ -523,9 +522,23 @@ end
 local function extractMeaningfulTokens(text)
     local tokens = {}
     local normalized = removeClearlyDelimitedFillerPhrases(text):lower()
-    for token in normalized:gmatch("[%a][%a']*") do
-        table.insert(tokens, token)
+    local current = {}
+    local function flushToken()
+        if #current > 0 then
+            table.insert(tokens, table.concat(current))
+            current = {}
+        end
     end
+    for i = 1, #normalized do
+        local char = normalized:sub(i, i)
+        local value = normalized:byte(i)
+        if value >= 128 or char:match("[%a']") then
+            table.insert(current, char)
+        else
+            flushToken()
+        end
+    end
+    flushToken()
     return removeAllowedFillerTokens(tokens)
 end
 
@@ -597,7 +610,6 @@ local function extractProtectedFactSequence(text)
                 i = i + 1
             end
             local value = text:sub(startIndex, i - 1):gsub("[%,%.]+$", "")
-            value = value:gsub(",", "")
             local prior = text:sub(startIndex - 1, startIndex - 1)
             local beforePrior = text:sub(startIndex - 2, startIndex - 2)
             local leadingDecimal = prior == "." and not beforePrior:match("%d")

@@ -311,6 +311,18 @@ local rejectedRefinements = {
         candidate = "The offset was -5 units.",
         reason = "numeric facts changed",
     },
+    {
+        name = "accent moved between repeated stems",
+        source = "José treated Jos.",
+        candidate = "Jos treated José.",
+        reason = "meaningful words changed or reordered",
+    },
+    {
+        name = "decimal comma changed tenfold",
+        source = "Administer 1,5 mg naloxone.",
+        candidate = "Administer 15 mg naloxone.",
+        reason = "numeric facts changed",
+    },
 }
 
 for _, case in ipairs(rejectedRefinements) do
