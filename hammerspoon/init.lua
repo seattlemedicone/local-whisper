@@ -288,10 +288,10 @@ local function applyVitalSignsFormatting(text)
     local vitalPattern =
         "[Bb]lood[ \t]+pressure[ \t]+(%d+)[ \t]+[Oo]ver[ \t]+(%d+)" ..
         "[,%.]?[ \t]+[Pp]ulse[ \t]+(%d+)" ..
-        "[,%.]?[ \t]+[Rr]espirations?[ \t]+(%d+)[,%.]?[ \t]+"
+        "[,%.]?[ \t]+[Rr]espirations?[ \t]+(%d+)"
     text = text:gsub(vitalPattern, function(systolic, diastolic, pulse, respirations)
         return string.format(
-            "BP %s/%s | P %s | R %s | ",
+            "BP %s/%s | P %s | R %s",
             systolic,
             diastolic,
             pulse,
@@ -301,34 +301,51 @@ local function applyVitalSignsFormatting(text)
 
     local nrfmPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
-        "[Nn]on%-?[ \t]*[Rr]ebreather[ \t]+face[ \t]+mask[%.]?"
+        "[Nn]on%-?[ \t]*[Rr]ebreather[ \t]+face[ \t]+mask"
     text = text:gsub(nrfmPattern, "SpO2 %1%% NRFM", 1)
 
     local nasalCannulaLpmPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
         "(%d+)[ \t]+[Ll]iters?[ \t]+per[ \t]+minute[ \t]+" ..
-        "[Nn]asal[ \t]+cannula[%.]?"
+        "[Nn]asal[ \t]+cannula"
     text = text:gsub(nasalCannulaLpmPattern, "SpO2 %1%% %2 L/min NC", 1)
 
     local nasalCannulaShortPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
-        "(%d+)[ \t]*[Ll]/[Mm][Ii][Nn][ \t]+[Nn]asal[ \t]+cannula[%.]?"
+        "(%d+)[ \t]*[Ll]/[Mm][Ii][Nn][ \t]+[Nn]asal[ \t]+cannula"
     text = text:gsub(nasalCannulaShortPattern, "SpO2 %1%% %2 L/min NC", 1)
 
     local nasalCannulaPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
-        "[Nn]asal[ \t]+cannula[%.]?"
+        "[Nn]asal[ \t]+cannula"
     text = text:gsub(nasalCannulaPattern, "SpO2 %1%% NC", 1)
 
     local roomAirPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
-        "[Rr]oom[ \t]+air[%.]?"
+        "[Rr]oom[ \t]+air"
     text = text:gsub(roomAirPattern, "SpO2 %1%% RA", 1)
 
     local roomAirWithoutOnPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+" ..
-        "[Rr]oom[ \t]+air[%.]?"
+        "[Rr]oom[ \t]+air"
     text = text:gsub(roomAirWithoutOnPattern, "SpO2 %1%% RA", 1)
+
+    -- Add the separator only when a recognized oxygen field immediately
+    -- follows respirations. Sentence punctuation remains untouched otherwise.
+    local spO2Fields = {
+        "SpO2[ \t]+%d+%%[ \t]+%d+[ \t]+L/min[ \t]+NC",
+        "SpO2[ \t]+%d+%%[ \t]+RA",
+        "SpO2[ \t]+%d+%%[ \t]+NRFM",
+        "SpO2[ \t]+%d+%%[ \t]+NC",
+        "SpO2[ \t]+%d+%%",
+    }
+    for _, nextField in ipairs(spO2Fields) do
+        text = text:gsub(
+            "(R[ \t]+%d+)[,%.]?[ \t]+(" .. nextField .. ")",
+            "%1 | %2",
+            1
+        )
+    end
 
     -- Normalize optional end-tidal CO2 and add its separator only when needed.
     text = text:gsub(
@@ -481,6 +498,20 @@ local function extractMeaningfulTokens(text)
     return removeAllowedFillerTokens(tokens)
 end
 
+-- Lua's %a class is ASCII-only. Preserve every non-ASCII byte exactly so a
+-- model cannot change a diacritic or other UTF-8 content that tokenization
+-- would otherwise ignore. Conservative rejection falls back to source text.
+local function extractNonAsciiBytes(text)
+    local bytes = {}
+    for i = 1, #text do
+        local value = text:byte(i)
+        if value >= 128 then
+            table.insert(bytes, value)
+        end
+    end
+    return bytes
+end
+
 local function sequencesMatch(left, right)
     if #left ~= #right then return false end
     for i = 1, #left do
@@ -556,6 +587,13 @@ local function validateRefinement(source, candidate)
         extractProtectedFactSequence(canonicalCandidate)
     ) then
         return false, "protected symbols changed"
+    end
+
+    if not sequencesMatch(
+        extractNonAsciiBytes(canonicalSource),
+        extractNonAsciiBytes(canonicalCandidate)
+    ) then
+        return false, "non-ASCII text changed"
     end
 
     if not sequencesMatch(

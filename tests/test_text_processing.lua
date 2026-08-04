@@ -35,6 +35,26 @@ local acceptanceCases = {
         expected = "SpO2 91% RA",
     },
     {
+        name = "partial vital signs do not append a dangling separator",
+        input = "blood pressure 120 over 80 pulse 70 respirations 16. Condition stable.",
+        expected = "BP 120/80 | P 70 | R 16. Condition stable.",
+    },
+    {
+        name = "standalone room air reading preserves sentence period",
+        input = "oxygen saturation 91% on room air. Condition improved.",
+        expected = "SpO2 91% RA. Condition improved.",
+    },
+    {
+        name = "standalone NRFM reading preserves sentence period",
+        input = "oxygen saturation 98% on non-rebreather face mask. Condition improved.",
+        expected = "SpO2 98% NRFM. Condition improved.",
+    },
+    {
+        name = "standalone nasal cannula reading preserves sentence period",
+        input = "oxygen saturation 96% on 2 liters per minute nasal cannula. Condition improved.",
+        expected = "SpO2 96% 2 L/min NC. Condition improved.",
+    },
+    {
         name = "standalone end tidal carbon dioxide",
         input = "end tidal CO2 42",
         expected = "EtCO2 42 mm Hg",
@@ -121,6 +141,11 @@ local acceptedRefinements = {
         name = "canonical vital signs preserved",
         source = "BP 132/82 | P 88 | R 20 | SpO2 98% 2 L/min NC | EtCO2 35 mm Hg",
         candidate = "BP 132/82 | P 88 | R 20 | SpO2 98% 2 L/min NC | EtCO2 35 mm Hg",
+    },
+    {
+        name = "unchanged non-ASCII text accepts punctuation",
+        source = "The name is José",
+        candidate = "The name is José.",
     },
 }
 
@@ -213,6 +238,12 @@ local rejectedRefinements = {
         source = "SpO2 98 and ejection fraction 50%.",
         candidate = "SpO2 98% and ejection fraction 50.",
         reason = "protected symbols changed",
+    },
+    {
+        name = "non-ASCII name changed",
+        source = "The name is José.",
+        candidate = "The name is Josè.",
+        reason = "non-ASCII text changed",
     },
 }
 
