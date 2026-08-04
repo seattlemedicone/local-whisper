@@ -55,6 +55,16 @@ local acceptanceCases = {
         expected = "SpO2 98,5%",
     },
     {
+        name = "oxygen saturation range on room air",
+        input = "oxygen saturation 95-98% on room air",
+        expected = "SpO2 95-98% RA",
+    },
+    {
+        name = "spaced oxygen saturation range on room air",
+        input = "oxygen saturation 95 - 98% on room air",
+        expected = "SpO2 95-98% RA",
+    },
+    {
         name = "partial vital signs do not append a dangling separator",
         input = "blood pressure 120 over 80 pulse 70 respirations 16. Condition stable.",
         expected = "BP 120/80 | P 70 | R 16. Condition stable.",
@@ -454,6 +464,18 @@ local rejectedRefinements = {
         source = "Give naloxone 2 mg and epinephrine 1 mg.",
         candidate = "Give naloxone mg and epinephrine 2 mg 1.",
         reason = "numeric facts changed",
+    },
+    {
+        name = "dose unit slash moved between words",
+        source = "Give 5 mg/kg naloxone.",
+        candidate = "Give 5 mg kg/naloxone.",
+        reason = "protected symbols changed",
+    },
+    {
+        name = "clinical abbreviation ampersands removed",
+        source = "Record H&H and D&C history.",
+        candidate = "Record H H and D C history.",
+        reason = "protected symbols changed",
     },
 }
 

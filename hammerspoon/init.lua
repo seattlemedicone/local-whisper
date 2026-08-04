@@ -261,7 +261,16 @@ local NO_CAPITALIZE_APPS = {
 
 -- Canonicalize complete spoken vital-sign sequences after model cleanup.
 local function applyVitalSignsFormatting(text)
-    local saturationValue = "%d+[%.,]?%d*"
+    local saturationScalar = "[%+%-]?%d[%d%.,/]*"
+    local function collapseSpacedSaturationRange(label)
+        text = text:gsub(
+            "(" .. label .. "[ \t]+)(" .. saturationScalar .. ")[ \t]+([%+%-])[ \t]+(" .. saturationScalar .. ")",
+            "%1%2%3%4"
+        )
+    end
+    collapseSpacedSaturationRange("[Oo]xygen[ \t]+saturation")
+    collapseSpacedSaturationRange("[Ss][Pp][Oo]2")
+    local saturationValue = "[%+%-]?%d[%d%.,/%+%-]*"
     local function formatSaturation(value, modality)
         local punctuation = ""
         local last = value:sub(-1)
@@ -699,12 +708,13 @@ end
 
 local PROTECTED_SYMBOLS = {
     "<", ">", "≤", "≥", "=", "~", "±", "/", ":", "-", "–", "—", "−",
-    "+", "|", "%", "×", "÷", "°", "$",
+    "+", "|", "%", "&", "×", "÷", "°", "$",
 }
 
 local function extractProtectedFactSequence(text)
     local facts = {}
     local i = 1
+    local wordIndex = 0
     while i <= #text do
         local matchedSymbol = nil
         for _, symbol in ipairs(PROTECTED_SYMBOLS) do
@@ -715,7 +725,7 @@ local function extractProtectedFactSequence(text)
         end
 
         if matchedSymbol then
-            table.insert(facts, "symbol:" .. matchedSymbol)
+            table.insert(facts, "symbol:" .. tostring(wordIndex) .. ":" .. matchedSymbol)
             i = i + #matchedSymbol
         elseif text:sub(i, i):match("%d") then
             local startIndex = i
@@ -731,6 +741,17 @@ local function extractProtectedFactSequence(text)
             local sign = leadingDecimal and beforePrior or prior
             if sign == "+" or sign == "-" then value = sign .. value end
             table.insert(facts, "number:" .. value)
+        elseif text:sub(i, i):match("%a") then
+            wordIndex = wordIndex + 1
+            i = i + 1
+            while i <= #text do
+                local nextChar = text:sub(i, i)
+                if nextChar:match("[%a']") or text:byte(i) >= 128 then
+                    i = i + 1
+                else
+                    break
+                end
+            end
         else
             i = i + 1
         end
