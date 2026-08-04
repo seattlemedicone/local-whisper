@@ -453,6 +453,48 @@ local function applyVitalSignsFormatting(text)
         "[Rr]oom[ \t]+air"
     text = text:gsub(roomAirWithoutOnPattern, function(value) return formatSaturation(value, "RA") end)
 
+    -- Whisper may emit the abbreviated SpO2 label even when only a partial
+    -- vital set is dictated. Normalize the same supported modalities without
+    -- requiring a leading BP/P/R sequence.
+    local abbreviatedNrfmPattern =
+        "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
+        "[Nn]on%-?[ \t]*[Rr]ebreather[ \t]+face[ \t]+mask"
+    text = text:gsub(abbreviatedNrfmPattern, function(value) return formatSaturation(value, "NRFM") end)
+
+    local abbreviatedNasalCannulaLpmPattern =
+        "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
+        "(%d+)[ \t]+[Ll]iters?[ \t]+per[ \t]+minute[ \t]+[Nn]asal[ \t]+cannula"
+    text = text:gsub(abbreviatedNasalCannulaLpmPattern, function(value, flow)
+        return formatSaturation(value, flow .. " L/min NC")
+    end)
+
+    local abbreviatedNasalCannulaLitersPattern =
+        "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
+        "(%d+)[ \t]+[Ll]iters?[ \t]+[Nn]asal[ \t]+cannula"
+    text = text:gsub(abbreviatedNasalCannulaLitersPattern, function(value, flow)
+        return formatSaturation(value, flow .. " L/min NC")
+    end)
+
+    local abbreviatedNasalCannulaShortPattern =
+        "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
+        "(%d+)[ \t]*[Ll]/[Mm][Ii][Nn][ \t]+[Nn]asal[ \t]+cannula"
+    text = text:gsub(abbreviatedNasalCannulaShortPattern, function(value, flow)
+        return formatSaturation(value, flow .. " L/min NC")
+    end)
+
+    local abbreviatedNasalCannulaPattern =
+        "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
+        "[Nn]asal[ \t]+cannula"
+    text = text:gsub(abbreviatedNasalCannulaPattern, function(value) return formatSaturation(value, "NC") end)
+
+    local abbreviatedRoomAirPattern =
+        "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+[Rr]oom[ \t]+air"
+    text = text:gsub(abbreviatedRoomAirPattern, function(value) return formatSaturation(value, "RA") end)
+
+    local abbreviatedRoomAirWithoutOnPattern =
+        "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Rr]oom[ \t]+air"
+    text = text:gsub(abbreviatedRoomAirWithoutOnPattern, function(value) return formatSaturation(value, "RA") end)
+
     local flowOnlyPerMinutePattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
         "(%d+)[ \t]+[Ll]iters?[ \t]+per[ \t]+minute"
@@ -491,6 +533,7 @@ local function applyVitalSignsFormatting(text)
     -- follows respirations. Sentence punctuation remains untouched otherwise.
     local spO2Fields = {
         "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+%d+[ \t]+L/min[ \t]+NC",
+        "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+%d+[ \t]+L/min",
         "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+RA",
         "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+NRFM",
         "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+NC",
@@ -564,6 +607,7 @@ local function applyVitalSignsFormatting(text)
     local etco2Field = "EtCO2[ \t]+" .. etco2Value .. "[ \t]+mm[ \t]+Hg"
     local adjacentSpO2Fields = {
         "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+%d+[ \t]+L/min[ \t]+NC",
+        "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+%d+[ \t]+L/min",
         "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+RA",
         "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+NRFM",
         "SpO2[ \t]+" .. saturationValue .. "%%[ \t]+NC",

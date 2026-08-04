@@ -75,6 +75,36 @@ local acceptanceCases = {
         expected = "EtCO2 35 mm Hg",
     },
     {
+        name = "standalone abbreviated room air",
+        input = "SpO2 97% on room air",
+        expected = "SpO2 97% RA",
+    },
+    {
+        name = "partial abbreviated room air joins pulse",
+        input = "pulse 70 SpO2 97% on room air",
+        expected = "P 70 | SpO2 97% RA",
+    },
+    {
+        name = "standalone abbreviated non-rebreather",
+        input = "SpO2 97% on non-rebreather face mask",
+        expected = "SpO2 97% NRFM",
+    },
+    {
+        name = "standalone abbreviated nasal cannula",
+        input = "SpO2 97% on nasal cannula",
+        expected = "SpO2 97% NC",
+    },
+    {
+        name = "standalone abbreviated liter-only nasal cannula",
+        input = "SpO2 97% on 2 liters nasal cannula",
+        expected = "SpO2 97% 2 L/min NC",
+    },
+    {
+        name = "flow-only oxygen joins EtCO2",
+        input = "blood pressure 120 over 80 pulse 70 respirations 16 oxygen saturation 97% on 2 liters end tidal CO2 35",
+        expected = "BP 120/80 | P 70 | R 16 | SpO2 97% 2 L/min | EtCO2 35 mm Hg",
+    },
+    {
         name = "standalone oxygen saturation on room air",
         input = "oxygen saturation 91% on room air",
         expected = "SpO2 91% RA",
@@ -225,9 +255,9 @@ local acceptanceCases = {
         expected = "The SpO2 98% improved after oxygen, and EtCO2 35 mm Hg was recorded.",
     },
     {
-        name = "SpO2 and later EtCO2 sentences remain prose",
+        name = "standalone abbreviated SpO2 is normalized without joining later prose",
         input = "SpO2 98% on room air. Later, EtCO2 35 mm Hg was recorded.",
-        expected = "SpO2 98% on room air. Later, EtCO2 35 mm Hg was recorded.",
+        expected = "SpO2 98% RA. Later, EtCO2 35 mm Hg was recorded.",
     },
     {
         name = "spoken punctuation between vital fields",
@@ -322,12 +352,12 @@ local acceptanceCases = {
     {
         name = "natural capitalized line command after a sentence",
         input = "SpO2 97% on room air. New line, the patient is diaphoretic.",
-        expected = "SpO2 97% on room air.\nThe patient is diaphoretic.",
+        expected = "SpO2 97% RA.\nThe patient is diaphoretic.",
     },
     {
         name = "merged newline command after a delimiter",
         input = "SpO2 97% on room air, newline skin colon diaphoretic.",
-        expected = "SpO2 97% on room air\nSkin: diaphoretic.",
+        expected = "SpO2 97% RA\nSkin: diaphoretic.",
     },
     {
         name = "partial vital set omits an undictated respiration field",
