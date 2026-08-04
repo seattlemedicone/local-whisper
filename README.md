@@ -109,12 +109,13 @@ cp ~/local-whisper/hammerspoon/init.lua ~/.hammerspoon/init.lua
 
 # 6. Enable guarded Gemma refinement
 mkdir -p ~/.local-whisper
+cp ~/local-whisper/vocabulary/ems_prompt.txt ~/.local-whisper/prompt
 printf 'en\n' > ~/.local-whisper/lang
 printf 'base.en\n' > ~/.local-whisper/model
 printf 'on\n' > ~/.local-whisper/refine
 printf 'gemma4:e2b\n' > ~/.local-whisper/refine_model
 chmod 700 ~/.local-whisper
-chmod 600 ~/.local-whisper/lang ~/.local-whisper/model ~/.local-whisper/refine ~/.local-whisper/refine_model
+chmod 600 ~/.local-whisper/prompt ~/.local-whisper/lang ~/.local-whisper/model ~/.local-whisper/refine ~/.local-whisper/refine_model
 
 # 7. Choose the trigger/microphone, grant permissions, and verify
 cd ~/local-whisper

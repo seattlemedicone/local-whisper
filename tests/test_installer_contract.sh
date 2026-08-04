@@ -78,6 +78,8 @@ require_text "$REPO_ROOT/.gitignore" '.env.*'
 
 require_text "$REPO_ROOT/README.md" 'https://github.com/SeattleMedicOne/local-whisper.git'
 require_text "$REPO_ROOT/README.md" './install.sh --verify'
+require_text "$REPO_ROOT/README.md" 'cp ~/local-whisper/vocabulary/ems_prompt.txt ~/.local-whisper/prompt'
+require_text "$REPO_ROOT/README.md" 'chmod 600 ~/.local-whisper/prompt'
 require_text "$REPO_ROOT/README.md" 'Do not commit patient information'
 
 TEST_ROOT="$(mktemp -d)"
