@@ -146,6 +146,28 @@ run_with_timeout() {
     return $rc
 }
 
+restart_hammerspoon_app() {
+    info "Restarting Hammerspoon to load the installed configuration..."
+    osascript -e 'tell application "Hammerspoon" to quit' >/dev/null 2>&1 || true
+    for _ in {1..10}; do
+        pgrep -q Hammerspoon || break
+        sleep 1
+    done
+    if pgrep -q Hammerspoon; then
+        killall Hammerspoon >/dev/null 2>&1 || true
+        for _ in {1..10}; do
+            pgrep -q Hammerspoon || break
+            sleep 1
+        done
+    fi
+    open -a "Hammerspoon"
+    for _ in {1..10}; do
+        pgrep -q Hammerspoon && return 0
+        sleep 1
+    done
+    return 1
+}
+
 if ! pgrep -q Hammerspoon; then
     info "Launching Hammerspoon..."
     open -a "Hammerspoon"
@@ -172,9 +194,22 @@ fi
 run_with_timeout 5 "$HS_BIN" -n -t 5 -c 'hs.reload()' >/dev/null 2>&1 || true
 sleep 2
 
-if run_with_timeout 5 "$HS_BIN" -n -t 5 -c \
-   'print(WhisperTextProcessing ~= nil and WhisperInstallationDiagnostics ~= nil)' 2>/dev/null |
-   grep -Fxq "true"; then
+runtime_loaded() {
+    run_with_timeout 5 "$HS_BIN" -n -t 5 -c \
+        'print(WhisperTextProcessing ~= nil and WhisperInstallationDiagnostics ~= nil)' \
+        2>/dev/null | grep -Fxq "true"
+}
+
+if ! runtime_loaded; then
+    warn "Hammerspoon did not accept the CLI reload; restarting the app once."
+    if ! restart_hammerspoon_app; then
+        error "Hammerspoon could not be restarted. Open it from Applications, then re-run ./install.sh."
+        exit 1
+    fi
+    sleep 2
+fi
+
+if runtime_loaded; then
     ok "Hammerspoon config loaded; local-whisper runtime is active"
 else
     error "local-whisper did not load. Open Hammerspoon > Console, then re-run ./install.sh."

@@ -68,6 +68,10 @@ reject_text "$REPO_ROOT/hammerspoon/init.lua" 'writeFile(PREFERRED_LANGS_FILE, "
 require_text "$REPO_ROOT/setup.sh" 'Step 3: Start Hammerspoon and load local-whisper'
 require_text "$REPO_ROOT/setup.sh" 'Step 4: macOS permissions'
 require_text "$REPO_ROOT/setup.sh" 'WhisperInstallationDiagnostics.microphone()'
+require_text "$REPO_ROOT/setup.sh" 'restart_hammerspoon_app'
+require_text "$REPO_ROOT/setup.sh" 'tell application "Hammerspoon" to quit'
+require_text "$REPO_ROOT/setup.sh" 'killall Hammerspoon'
+require_text "$REPO_ROOT/setup.sh" 'Hammerspoon did not accept the CLI reload; restarting the app once.'
 require_text "$REPO_ROOT/setup.sh" 'Setup is incomplete. Grant both permissions'
 reject_text "$REPO_ROOT/setup.sh" 'run_with_timeout 5 "$FFMPEG_BIN"'
 
