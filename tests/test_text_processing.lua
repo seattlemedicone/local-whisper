@@ -147,6 +147,11 @@ local acceptedRefinements = {
         source = "The name is José",
         candidate = "The name is José.",
     },
+    {
+        name = "comma-delimited I mean remains an allowed filler",
+        source = "I mean, the finding is unchanged.",
+        candidate = "The finding is unchanged.",
+    },
 }
 
 for _, case in ipairs(acceptedRefinements) do
@@ -244,6 +249,12 @@ local rejectedRefinements = {
         source = "The name is José.",
         candidate = "The name is Josè.",
         reason = "non-ASCII text changed",
+    },
+    {
+        name = "meaningful you know phrase removed",
+        source = "Do you know whether the medication was taken?",
+        candidate = "Do whether the medication was taken?",
+        reason = "meaningful words changed or reordered",
     },
 }
 

@@ -476,11 +476,7 @@ local function removeAllowedFillerTokens(tokens)
     local i = 1
     while i <= #tokens do
         local token = tokens[i]
-        local nextToken = tokens[i + 1]
-        if (token == "you" and nextToken == "know") or
-           (token == "i" and nextToken == "mean") then
-            i = i + 2
-        elseif token == "um" or token == "uh" or token:match("^hm+$") then
+        if token == "um" or token == "uh" or token:match("^hm+$") then
             i = i + 1
         else
             table.insert(filtered, token)
@@ -490,9 +486,23 @@ local function removeAllowedFillerTokens(tokens)
     return filtered
 end
 
+local function removeClearlyDelimitedFillerPhrases(text)
+    local normalized = text:lower()
+    local phrases = {"you[ \t]+know", "i[ \t]+mean"}
+    for _, phrase in ipairs(phrases) do
+        -- Only a phrase at the start of an utterance/sentence or immediately
+        -- after delimiter punctuation, followed by a comma, is clearly filler.
+        normalized = normalized:gsub("^[ \t]*[,;:]?[ \t]*" .. phrase .. "[ \t]*,", "")
+        normalized = normalized:gsub("([%.%!%?][ \t]+)" .. phrase .. "[ \t]*,", "%1")
+        normalized = normalized:gsub("([,;:][ \t]*)" .. phrase .. "[ \t]*,", "%1")
+    end
+    return normalized
+end
+
 local function extractMeaningfulTokens(text)
     local tokens = {}
-    for token in text:lower():gmatch("[%a][%a']*") do
+    local normalized = removeClearlyDelimitedFillerPhrases(text)
+    for token in normalized:gmatch("[%a][%a']*") do
         table.insert(tokens, token)
     end
     return removeAllowedFillerTokens(tokens)
