@@ -403,7 +403,6 @@ local function applyDictationCommands(text)
     replaceCommand("[Ss]emicolon", "; ")
     replaceCommand("[Cc]olon", ": ")
     replaceCommand("[Cc]omma", ", ")
-    replaceCommand("[Pp]eriod", ". ")
 
     text = text:gsub("[ \t]+([,%.%?!:;])", "%1")
     text = text:gsub("[ \t]+\n", "\n"):gsub("\n[ \t]+", "\n")
@@ -522,6 +521,20 @@ local function extractNonAsciiBytes(text)
     return bytes
 end
 
+-- Ordinary sentence capitalization may change, but acronym-like terms can be
+-- case-sensitive. Preserve all-uppercase words and mixed-case words containing
+-- at least two uppercase letters; uncertain responses fall back to source.
+local function extractCaseSensitiveTokens(text)
+    local tokens = {}
+    for token in text:gmatch("[%a][%a']*") do
+        local uppercaseCount = select(2, token:gsub("[A-Z]", ""))
+        if token:match("^[A-Z][A-Z]+$") or uppercaseCount >= 2 then
+            table.insert(tokens, token)
+        end
+    end
+    return tokens
+end
+
 local function sequencesMatch(left, right)
     if #left ~= #right then return false end
     for i = 1, #left do
@@ -604,6 +617,13 @@ local function validateRefinement(source, candidate)
         extractNonAsciiBytes(canonicalCandidate)
     ) then
         return false, "non-ASCII text changed"
+    end
+
+    if not sequencesMatch(
+        extractCaseSensitiveTokens(canonicalSource),
+        extractCaseSensitiveTokens(canonicalCandidate)
+    ) then
+        return false, "case-sensitive terms changed"
     end
 
     if not sequencesMatch(

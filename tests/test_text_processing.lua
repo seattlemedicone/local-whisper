@@ -81,8 +81,13 @@ local acceptanceCases = {
     },
     {
         name = "spoken punctuation between vital fields",
-        input = "blood pressure 140 over 95 comma pulse 89 comma respirations 20 period oxygen saturation 98% on non-rebreather face mask",
+        input = "blood pressure 140 over 95 comma pulse 89 comma respirations 20 full stop oxygen saturation 98% on non-rebreather face mask",
         expected = "BP 140/95 | P 89 | R 20 | SpO2 98% NRFM",
+    },
+    {
+        name = "ordinary period noun is preserved",
+        input = "The patient had a prolonged period of apnea.",
+        expected = "The patient had a prolonged period of apnea.",
     },
     {
         name = "punctuation command is not matched inside a word",
@@ -134,7 +139,7 @@ local acceptedRefinements = {
     },
     {
         name = "spoken punctuation canonicalizes identically",
-        source = "Findings colon normal period Next sentence",
+        source = "Findings colon normal full stop Next sentence",
         candidate = "Findings: normal. Next sentence",
     },
     {
@@ -255,6 +260,12 @@ local rejectedRefinements = {
         source = "Do you know whether the medication was taken?",
         candidate = "Do whether the medication was taken?",
         reason = "meaningful words changed or reordered",
+    },
+    {
+        name = "case-sensitive abbreviation changed",
+        source = "Send the patient to US for further imaging.",
+        candidate = "Send the patient to us for further imaging.",
+        reason = "case-sensitive terms changed",
     },
 }
 
