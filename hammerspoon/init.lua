@@ -283,7 +283,7 @@ local function applyVitalSignsFormatting(text)
             respirations,
             saturation
         )
-    end, 1)
+    end)
 
     local vitalPattern =
         "[Bb]lood[ \t]+pressure[ \t]+(%d+)[ \t]+[Oo]ver[ \t]+(%d+)" ..
@@ -297,38 +297,38 @@ local function applyVitalSignsFormatting(text)
             pulse,
             respirations
         )
-    end, 1)
+    end)
 
     local nrfmPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
         "[Nn]on%-?[ \t]*[Rr]ebreather[ \t]+face[ \t]+mask"
-    text = text:gsub(nrfmPattern, "SpO2 %1%% NRFM", 1)
+    text = text:gsub(nrfmPattern, "SpO2 %1%% NRFM")
 
     local nasalCannulaLpmPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
         "(%d+)[ \t]+[Ll]iters?[ \t]+per[ \t]+minute[ \t]+" ..
         "[Nn]asal[ \t]+cannula"
-    text = text:gsub(nasalCannulaLpmPattern, "SpO2 %1%% %2 L/min NC", 1)
+    text = text:gsub(nasalCannulaLpmPattern, "SpO2 %1%% %2 L/min NC")
 
     local nasalCannulaShortPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
         "(%d+)[ \t]*[Ll]/[Mm][Ii][Nn][ \t]+[Nn]asal[ \t]+cannula"
-    text = text:gsub(nasalCannulaShortPattern, "SpO2 %1%% %2 L/min NC", 1)
+    text = text:gsub(nasalCannulaShortPattern, "SpO2 %1%% %2 L/min NC")
 
     local nasalCannulaPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
         "[Nn]asal[ \t]+cannula"
-    text = text:gsub(nasalCannulaPattern, "SpO2 %1%% NC", 1)
+    text = text:gsub(nasalCannulaPattern, "SpO2 %1%% NC")
 
     local roomAirPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+[Oo]n[ \t]+" ..
         "[Rr]oom[ \t]+air"
-    text = text:gsub(roomAirPattern, "SpO2 %1%% RA", 1)
+    text = text:gsub(roomAirPattern, "SpO2 %1%% RA")
 
     local roomAirWithoutOnPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(%d+)%%?[ \t]+" ..
         "[Rr]oom[ \t]+air"
-    text = text:gsub(roomAirWithoutOnPattern, "SpO2 %1%% RA", 1)
+    text = text:gsub(roomAirWithoutOnPattern, "SpO2 %1%% RA")
 
     -- Add the separator only when a recognized oxygen field immediately
     -- follows respirations. Sentence punctuation remains untouched otherwise.
@@ -342,8 +342,7 @@ local function applyVitalSignsFormatting(text)
     for _, nextField in ipairs(spO2Fields) do
         text = text:gsub(
             "(R[ \t]+%d+)[,%.]?[ \t]+(" .. nextField .. ")",
-            "%1 | %2",
-            1
+            "%1 | %2"
         )
     end
 
@@ -358,10 +357,9 @@ local function applyVitalSignsFormatting(text)
     )
     text = text:gsub(
         "[Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+(%d+)",
-        "EtCO2 %1",
-        1
+        "EtCO2 %1"
     )
-    text = text:gsub("[Ee][Tt][Cc][Oo]2[ \t]+(%d+)", "EtCO2 %1 mm Hg", 1)
+    text = text:gsub("[Ee][Tt][Cc][Oo]2[ \t]+(%d+)", "EtCO2 %1 mm Hg")
     local etco2Field = "EtCO2[ \t]+%d+[ \t]+mm[ \t]+Hg"
     local adjacentSpO2Fields = {
         "SpO2[ \t]+%d+%%[ \t]+%d+[ \t]+L/min[ \t]+NC",
@@ -373,14 +371,12 @@ local function applyVitalSignsFormatting(text)
     for _, priorField in ipairs(adjacentSpO2Fields) do
         text = text:gsub(
             "(" .. priorField .. ")[,%.]?[ \t]+(" .. etco2Field .. ")",
-            "%1 | %2",
-            1
+            "%1 | %2"
         )
     end
     text = text:gsub(
         "(R[ \t]+%d+)[,%.]?[ \t]+(EtCO2[ \t]+%d+[ \t]+mm[ \t]+Hg)",
-        "%1 | %2",
-        1
+        "%1 | %2"
     )
 
     return text
@@ -401,7 +397,7 @@ local function applyDictationCommands(text)
     replaceCommand("[Ee]xclamation[ \t]+point", "! ")
     replaceCommand("[Ee]xclamation[ \t]+mark", "! ")
     replaceCommand("[Ss]emicolon", "; ")
-    replaceCommand("[Cc]olon", ": ")
+    replaceCommand("[Pp]unctuation[ \t]+colon", ": ")
     replaceCommand("[Cc]omma", ", ")
 
     text = text:gsub("[ \t]+([,%.%?!:;])", "%1")
@@ -522,13 +518,12 @@ local function extractNonAsciiBytes(text)
 end
 
 -- Ordinary sentence capitalization may change, but acronym-like terms can be
--- case-sensitive. Preserve all-uppercase words and mixed-case words containing
--- at least two uppercase letters; uncertain responses fall back to source.
+-- case-sensitive. Preserve all-uppercase words and words with any uppercase
+-- letter after the first character; uncertain responses fall back to source.
 local function extractCaseSensitiveTokens(text)
     local tokens = {}
     for token in text:gmatch("[%a][%a']*") do
-        local uppercaseCount = select(2, token:gsub("[A-Z]", ""))
-        if token:match("^[A-Z][A-Z]+$") or uppercaseCount >= 2 then
+        if token:match("^[A-Z][A-Z]+$") or token:sub(2):match("[A-Z]") then
             table.insert(tokens, token)
         end
     end

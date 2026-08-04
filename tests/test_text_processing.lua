@@ -95,9 +95,14 @@ local acceptanceCases = {
         expected = "This is a colonoscopy.",
     },
     {
-        name = "standalone colon command still works",
-        input = "Findings colon normal.",
+        name = "explicit punctuation colon command works",
+        input = "Findings punctuation colon normal.",
         expected = "Findings: normal.",
+    },
+    {
+        name = "anatomical colon noun is preserved",
+        input = "The colon was normal.",
+        expected = "The colon was normal.",
     },
     {
         name = "clock time and missing sentence space",
@@ -139,7 +144,7 @@ local acceptedRefinements = {
     },
     {
         name = "spoken punctuation canonicalizes identically",
-        source = "Findings colon normal full stop Next sentence",
+        source = "Findings punctuation colon normal full stop Next sentence",
         candidate = "Findings: normal. Next sentence",
     },
     {
@@ -267,6 +272,12 @@ local rejectedRefinements = {
         candidate = "Send the patient to us for further imaging.",
         reason = "case-sensitive terms changed",
     },
+    {
+        name = "internal-uppercase clinical terms changed",
+        source = "The arterial pH was measured after 2 mL.",
+        candidate = "The arterial ph was measured after 2 ml.",
+        reason = "case-sensitive terms changed",
+    },
 }
 
 for _, case in ipairs(rejectedRefinements) do
@@ -319,6 +330,15 @@ for systolic = 90, 220, 10 do
     )
     assert(process(input) == expected, "generated vital-sign case failed")
 end
+
+local twoSetInput =
+    "blood pressure 120 over 80 pulse 70 respirations 16 oxygen saturation 95% on room air. " ..
+    "blood pressure 130 over 85 pulse 75 respirations 18 oxygen saturation 98% on non-rebreather face mask"
+local twoSetExpected =
+    "BP 120/80 | P 70 | R 16 | SpO2 95% RA. " ..
+    "BP 130/85 | P 75 | R 18 | SpO2 98% NRFM"
+assert(process(twoSetInput) == twoSetExpected, "multiple vital-sign sets were not all formatted")
+assert(process(twoSetExpected) == twoSetExpected, "multiple formatted vital-sign sets are not idempotent")
 
 for _, case in ipairs(acceptanceCases) do
     local once = process(case.input)
