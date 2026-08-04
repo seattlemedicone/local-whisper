@@ -70,6 +70,16 @@ local acceptanceCases = {
         expected = "EtCO2 35,5 mm Hg",
     },
     {
+        name = "end tidal carbon dioxide range",
+        input = "EtCO2 35-40 mm Hg",
+        expected = "EtCO2 35-40 mm Hg",
+    },
+    {
+        name = "decimal EtCO2 follows respirations without SpO2",
+        input = "blood pressure 120 over 80 pulse 70 respirations 16 end tidal CO2 35,5",
+        expected = "BP 120/80 | P 70 | R 16 | EtCO2 35,5 mm Hg",
+    },
+    {
         name = "already abbreviated vital signs gain canonical separators",
         input = "BP 132/82 P 88 R 20 SpO2 98% RA EtCO2 35",
         expected = "BP 132/82 | P 88 | R 20 | SpO2 98% RA | EtCO2 35 mm Hg",

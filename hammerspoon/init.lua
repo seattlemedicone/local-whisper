@@ -346,43 +346,35 @@ local function applyVitalSignsFormatting(text)
         )
     end
 
-    -- Normalize optional end-tidal CO2 and add its separator only when needed.
+    -- Normalize the complete EtCO2 numeric expression before adding its unit.
+    -- This avoids inserting units inside decimals, ranges, or fractions.
+    local etco2Value = "[%+%-]?%d[%d%.,/%+%-]*"
     text = text:gsub(
-        "([Ee][Tt][Cc][Oo]2[ \t]+%d+[%.,]%d+)[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
+        "([Ee][Tt][Cc][Oo]2[ \t]+" .. etco2Value .. ")[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
         "%1"
     )
     text = text:gsub(
-        "([Ee][Tt][Cc][Oo]2[ \t]+%d+)[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
+        "([Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+" .. etco2Value .. ")[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
         "%1"
     )
     text = text:gsub(
-        "([Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+%d+[%.,]%d+)[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
-        "%1"
-    )
-    text = text:gsub(
-        "([Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+%d+)[ \t]+[Mm][Mm][ \t]*[Hh][Gg]",
-        "%1"
-    )
-    text = text:gsub(
-        "[Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+(%d+[%.,]%d+)",
+        "[Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+(" .. etco2Value .. ")",
         "EtCO2 %1"
     )
     text = text:gsub(
-        "[Ee]nd[%- ]?[Tt]idal[ \t]+[Cc][Oo]2[ \t]+(%d+)",
-        "EtCO2 %1"
-    )
-    text = text:gsub(
-        "[Ee][Tt][Cc][Oo]2[ \t]+(%d+)([%.,]?)(%d*)",
-        function(whole, decimalSeparator, fraction)
-            if decimalSeparator ~= "" and fraction == "" then
-                return "EtCO2 " .. whole .. " mm Hg" .. decimalSeparator
+        "[Ee][Tt][Cc][Oo]2[ \t]+(" .. etco2Value .. ")",
+        function(rawValue)
+            local value = rawValue
+            local punctuation = ""
+            local last = value:sub(-1)
+            if (last == "." or last == ",") and value:sub(1, -2):match("%d$") then
+                value = value:sub(1, -2)
+                punctuation = last
             end
-            local value = whole
-            if fraction ~= "" then value = value .. decimalSeparator .. fraction end
-            return "EtCO2 " .. value .. " mm Hg"
+            return "EtCO2 " .. value .. " mm Hg" .. punctuation
         end
     )
-    local etco2Field = "EtCO2[ \t]+%d+[%.,]?%d*[ \t]+mm[ \t]+Hg"
+    local etco2Field = "EtCO2[ \t]+" .. etco2Value .. "[ \t]+mm[ \t]+Hg"
     local adjacentSpO2Fields = {
         "SpO2[ \t]+%d+%%[ \t]+%d+[ \t]+L/min[ \t]+NC",
         "SpO2[ \t]+%d+%%[ \t]+RA",
@@ -397,7 +389,7 @@ local function applyVitalSignsFormatting(text)
         )
     end
     text = text:gsub(
-        "(R[ \t]+%d+)[,%.]?[ \t]+(EtCO2[ \t]+%d+[ \t]+mm[ \t]+Hg)",
+        "(R[ \t]+%d+)[,%.]?[ \t]+(" .. etco2Field .. ")",
         "%1 | %2"
     )
 
