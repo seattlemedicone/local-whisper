@@ -29,6 +29,7 @@ WHISPER_PREVIEW_MODEL_MIN_BYTES=50000000
 OLLAMA_MODEL="gemma4:e2b"
 HAMMERSPOON_DIR="$HOME/.hammerspoon"
 CONFIG_DIR="$HOME/.local-whisper"
+DEFAULT_MEDICAL_PROMPT="$SCRIPT_DIR/vocabulary/ems_prompt.txt"
 
 read_lua_string_setting() {
     local file="$1"
@@ -224,6 +225,17 @@ is_guarded_hammerspoon_config() {
         grep -Fq 'WhisperTextProcessing.validateRefinement = validateRefinement' "$file"
 }
 
+install_default_prompt() {
+    local source_file="$1"
+    local target_file="$2"
+    if [[ -e "$target_file" ]]; then
+        return 0
+    fi
+    [[ -s "$source_file" ]] || return 1
+    cp "$source_file" "$target_file"
+    chmod 600 "$target_file"
+}
+
 verify_installation() {
     local failed=false
     local configured_model=""
@@ -313,6 +325,13 @@ verify_installation() {
         ok "English Whisper configuration is active (${configured_model})"
     else
         error "Configured English Whisper model is missing or unreadable: ${configured_model:-unset}"
+        failed=true
+    fi
+
+    if [[ -s "$CONFIG_DIR/prompt" ]]; then
+        ok "Local EMS vocabulary prompt is configured"
+    else
+        error "Local EMS vocabulary prompt is missing or empty"
         failed=true
     fi
 
@@ -470,6 +489,15 @@ mkdir -p "$HAMMERSPOON_DIR"
 mkdir -p "$CONFIG_DIR"
 chmod 700 "$CONFIG_DIR"
 ok "Config directory: $CONFIG_DIR"
+
+if [[ -e "$CONFIG_DIR/prompt" ]]; then
+    ok "Preserving existing custom vocabulary prompt"
+elif install_default_prompt "$DEFAULT_MEDICAL_PROMPT" "$CONFIG_DIR/prompt"; then
+    ok "Local EMS vocabulary prompt installed"
+else
+    error "Bundled EMS vocabulary prompt is missing"
+    exit 1
+fi
 
 install_hammerspoon_config "$SCRIPT_DIR/hammerspoon/init.lua" "$HAMMERSPOON_DIR/init.lua"
 

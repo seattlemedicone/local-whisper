@@ -176,13 +176,23 @@ All settings are accessible from the menu bar — no keyboard shortcuts needed.
 
 ## Custom vocabulary prompt
 
-Create `~/.local-whisper/prompt` with terms whisper should recognize better:
+The installer creates `~/.local-whisper/prompt` with a compact EMS vocabulary
+curated from current [NLM MeSH](https://www.nlm.nih.gov/databases/download/mesh.html)
+and [NEMSIS v3.5.1](https://nemsis.org/technical-resources/version-3/version-3-data-dictionaries/)
+terminology. The file stays on the Mac and is passed to both the preview and
+final local Whisper models. Existing prompt files are always preserved during
+installation and upgrades.
+
+Edit that file to add agency-specific terms Whisper should recognize better:
 
 ```
-Claude, Hammerspoon, whisper.cpp, ffmpeg, macOS, Lua, Anthropic
+LIFEPAK, LUCAS, tenecteplase, local hospital and unit names
 ```
 
-This is passed as `--prompt` to whisper-cli for both partial and final transcription. Adding your voice command trigger words here improves recognition.
+Keep the most important terms near the end: whisper.cpp uses at most half of
+the model's text context for an initial prompt (typically 224 tokens). Adding
+voice-command trigger words here also improves recognition. Source and reuse
+notes for the bundled prompt are in `vocabulary/SOURCES.md`.
 
 ## Local Gemma refinement
 

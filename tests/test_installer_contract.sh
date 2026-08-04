@@ -41,6 +41,8 @@ reject_text "$REPO_ROOT/install.sh" 'printf '\''%s\n'\'' "on" > "$CONFIG_DIR/ref
 reject_text "$REPO_ROOT/install.sh" 'printf '\''%s\n'\'' "$OLLAMA_MODEL" > "$CONFIG_DIR/refine_model"'
 require_text "$REPO_ROOT/install.sh" 'if [[ "${1:-}" == "--verify" ]]'
 require_text "$REPO_ROOT/install.sh" 'install_hammerspoon_config "$SCRIPT_DIR/hammerspoon/init.lua" "$HAMMERSPOON_DIR/init.lua"'
+require_text "$REPO_ROOT/install.sh" 'install_default_prompt "$DEFAULT_MEDICAL_PROMPT" "$CONFIG_DIR/prompt"'
+require_text "$REPO_ROOT/install.sh" 'Local EMS vocabulary prompt is configured'
 require_text "$REPO_ROOT/install.sh" 'Guarded Hammerspoon runtime is loaded'
 require_text "$REPO_ROOT/install.sh" 'verify_whisper_model "$temporary_file" "$minimum_bytes"'
 require_text "$REPO_ROOT/install.sh" 'bash ./models/download-ggml-model.sh "$model" "$temporary_dir"'
@@ -137,6 +139,19 @@ HOME="$FAKE_HOME" WHISPER_CPP_DIR="$FAKE_WHISPER" \
     download_model "test.en" "atomic installer test" "small" 10 >/dev/null
 
 mkdir -p "$FAKE_HOME/.local-whisper"
+
+install_default_prompt "$REPO_ROOT/vocabulary/ems_prompt.txt" "$FAKE_HOME/.local-whisper/prompt"
+if ! cmp -s "$REPO_ROOT/vocabulary/ems_prompt.txt" "$FAKE_HOME/.local-whisper/prompt"; then
+    echo "FAIL: bundled EMS vocabulary prompt was not installed" >&2
+    exit 1
+fi
+printf '%s\n' "User-specific vocabulary" > "$FAKE_HOME/.local-whisper/prompt"
+install_default_prompt "$REPO_ROOT/vocabulary/ems_prompt.txt" "$FAKE_HOME/.local-whisper/prompt"
+if [[ "$(cat "$FAKE_HOME/.local-whisper/prompt")" != "User-specific vocabulary" ]]; then
+    echo "FAIL: existing custom vocabulary prompt was overwritten" >&2
+    exit 1
+fi
+
 printf '%s\n' "test.en" > "$FAKE_HOME/.local-whisper/model"
 SELECTED_MODEL="$(
     CONFIG_DIR="$FAKE_HOME/.local-whisper" WHISPER_CPP_DIR="$FAKE_WHISPER" \

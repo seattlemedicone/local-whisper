@@ -220,6 +220,21 @@ local acceptanceCases = {
         expected = "The ETA is 15:45. The ETA is 1545.",
     },
     {
+        name = "medication dose receives a leading zero",
+        input = "Administer .5 mg naloxone.",
+        expected = "Administer 0.5 mg naloxone.",
+    },
+    {
+        name = "signed decimal receives a leading zero",
+        input = "The change was -.5 mg.",
+        expected = "The change was -0.5 mg.",
+    },
+    {
+        name = "existing leading zero is preserved",
+        input = "Administer 0.5 mg naloxone.",
+        expected = "Administer 0.5 mg naloxone.",
+    },
+    {
         name = "dotted clinical initialism is preserved",
         input = "The E.K.G. showed ST elevation.",
         expected = "The E.K.G. showed ST elevation.",

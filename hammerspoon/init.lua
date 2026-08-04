@@ -540,6 +540,10 @@ local function postProcess(text, appBundleID)
     text = text:gsub("%f[%w][Hh][Mm][Mm]+%f[%W]", "")
     -- Remove "like," used as filler (comma-following)
     text = text:gsub("%f[%w][Ll]ike,%s*", "")
+    -- Medication-safety convention: never leave a decimal dose without a
+    -- leading zero (for example, ".5 mg" becomes "0.5 mg").
+    text = text:gsub("^([%+%-]?)%.(%d)", "%10.%2")
+    text = text:gsub("([%s%(%[%{=,:;])([%+%-]?)%.(%d)", "%1%20.%3")
     text = applyDictationCommands(text)
     text = applyVitalSignsFormatting(text)
     -- Collapse horizontal spaces without destroying lines or paragraphs.
