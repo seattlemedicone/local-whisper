@@ -22,9 +22,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ─── Configurable paths ─────────────────────────────────────────────────────
 WHISPER_CPP_DIR="$HOME/whisper.cpp"
-WHISPER_MODEL="base.en"
+WHISPER_MODEL="small.en"
 WHISPER_PREVIEW_MODEL="tiny.en"
-WHISPER_MODEL_MIN_BYTES=100000000
+WHISPER_MODEL_MIN_BYTES=400000000
 WHISPER_PREVIEW_MODEL_MIN_BYTES=50000000
 OLLAMA_MODEL="gemma4:e2b"
 HAMMERSPOON_DIR="$HOME/.hammerspoon"
@@ -479,7 +479,7 @@ fi
 echo ""
 info "Step 3/7: Downloading English Whisper models..."
 
-download_model "$WHISPER_MODEL" "final English dictation" "142 MB" "$WHISPER_MODEL_MIN_BYTES"
+download_model "$WHISPER_MODEL" "accurate English clinical dictation" "466 MB" "$WHISPER_MODEL_MIN_BYTES"
 download_model "$WHISPER_PREVIEW_MODEL" "fast English live preview" "75 MB" "$WHISPER_PREVIEW_MODEL_MIN_BYTES"
 
 # ─── Step 4: Install Hammerspoon config ─────────────────────────────────────

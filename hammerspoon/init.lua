@@ -44,7 +44,7 @@ local function getModelName(_language)
     local saved = ""
     local f = io.open(MODEL_FILE, "r")
     if f then saved = f:read("*a"):gsub("%s+", ""); f:close() end
-    return modelExists(saved) and saved or "base.en"
+    return modelExists(saved) and saved or "small.en"
 end
 
 local function getModelPath(language)
@@ -386,6 +386,17 @@ local function applyVitalSignsFormatting(text)
         )
     end)
 
+    -- Individual fields are valid too: callers may dictate only the values
+    -- that were measured. Run these after the complete-sequence rule so a
+    -- partial set still uses the same canonical labels without inferring a
+    -- missing value.
+    text = text:gsub(
+        "[Bb]lood[ \t]+pressure[ \t]+(%d+)[ \t]+[Oo]ver[ \t]+(%d+)",
+        "BP %1/%2"
+    )
+    text = text:gsub("[Pp]ulse[ \t]+(%d+)", "P %1")
+    text = text:gsub("[Rr]espirations?[ \t]+(%d+)", "R %1")
+
     local nrfmPattern =
         "[Oo]xygen[ \t]+saturation[ \t]+(" .. saturationValue .. ")%%?[ \t]+[Oo]n[ \t]+" ..
         "[Nn]on%-?[ \t]*[Rr]ebreather[ \t]+face[ \t]+mask"
@@ -437,8 +448,13 @@ local function applyVitalSignsFormatting(text)
         "SpO2[ \t]+" .. saturationValue .. "%%",
     }
     for _, nextField in ipairs(spO2Fields) do
+        joinVitalFields("BP[ \t]+%d+[ \t]*/[ \t]*%d+", nextField)
+        joinVitalFields("P[ \t]+%d+", nextField)
         joinVitalFields("R[ \t]+%d+", nextField)
     end
+    joinVitalFields("BP[ \t]+%d+[ \t]*/[ \t]*%d+", "P[ \t]+%d+")
+    joinVitalFields("BP[ \t]+%d+[ \t]*/[ \t]*%d+", "R[ \t]+%d+")
+    joinVitalFields("P[ \t]+%d+", "R[ \t]+%d+")
 
     -- Collapse spaces around a dictated range separator before matching the
     -- complete EtCO2 expression. This keeps the unit outside both endpoints.
@@ -507,6 +523,8 @@ local function applyVitalSignsFormatting(text)
     for _, priorField in ipairs(adjacentSpO2Fields) do
         joinVitalFields(priorField, etco2Field)
     end
+    joinVitalFields("BP[ \t]+%d+[ \t]*/[ \t]*%d+", etco2Field)
+    joinVitalFields("P[ \t]+%d+", etco2Field)
     joinVitalFields("R[ \t]+%d+", etco2Field)
 
     return text
@@ -520,15 +538,64 @@ local function applyDictationCommands(text)
         text = text:gsub("[ \t]+" .. completePhrase .. "[%.%,]?[ \t]*", replacement)
     end
 
-    replaceCommand("[Ff]ormat[ \t]+new[ \t]+paragraph", "\n\n")
-    replaceCommand("[Ff]ormat[ \t]+new[ \t]+line", "\n")
-    replaceCommand("[Pp]unctuation[ \t]+full[ \t]+stop", ". ")
-    replaceCommand("[Pp]unctuation[ \t]+question[ \t]+mark", "? ")
-    replaceCommand("[Pp]unctuation[ \t]+exclamation[ \t]+point", "! ")
-    replaceCommand("[Pp]unctuation[ \t]+exclamation[ \t]+mark", "! ")
-    replaceCommand("[Pp]unctuation[ \t]+semicolon", "; ")
-    replaceCommand("[Pp]unctuation[ \t]+colon", ": ")
-    replaceCommand("[Pp]unctuation[ \t]+comma", ", ")
+    local newParagraph = "[Nn][Ee][Ww][ \t]+[Pp][Aa][Rr][Aa][Gg][Rr][Aa][Pp][Hh]"
+    local newLine = "[Nn][Ee][Ww][ \t]+[Ll][Ii][Nn][Ee]"
+
+    -- Explicit forms remain available when the surrounding prose is
+    -- ambiguous. Every letter is case-insensitive because Whisper commonly
+    -- capitalizes a command after a pause.
+    replaceCommand("[Ff][Oo][Rr][Mm][Aa][Tt][ \t]+" .. newParagraph, "\n\n")
+    replaceCommand("[Ff][Oo][Rr][Mm][Aa][Tt][ \t]+" .. newLine, "\n")
+    replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Ff][Uu][Ll][Ll][ \t]+[Ss][Tt][Oo][Pp]", ". ")
+    replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Qq][Uu][Ee][Ss][Tt][Ii][Oo][Nn][ \t]+[Mm][Aa][Rr][Kk]", "? ")
+    replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Ee][Xx][Cc][Ll][Aa][Mm][Aa][Tt][Ii][Oo][Nn][ \t]+[Pp][Oo][Ii][Nn][Tt]", "! ")
+    replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Ee][Xx][Cc][Ll][Aa][Mm][Aa][Tt][Ii][Oo][Nn][ \t]+[Mm][Aa][Rr][Kk]", "! ")
+    replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Ss][Ee][Mm][Ii][Cc][Oo][Ll][Oo][Nn]", "; ")
+    replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Cc][Oo][Ll][Oo][Nn]", ": ")
+    replaceCommand("[Pp][Uu][Nn][Cc][Tt][Uu][Aa][Tt][Ii][Oo][Nn][ \t]+[Cc][Oo][Mm][Mm][Aa]", ", ")
+
+    -- Natural line commands are accepted at the start or after sentence
+    -- punctuation. This avoids rewriting ordinary phrases such as "a new
+    -- line was placed". The paragraph aliases below are restricted to a
+    -- following blood-pressure block because Whisper used both renderings for
+    -- the new-paragraph cue in live clinical dictation.
+    local function replaceDelimitedBreak(phrase, replacement)
+        text = text:gsub("^[ \t]*" .. phrase .. "[%.%,]?[ \t]*", replacement)
+        text = text:gsub("([%.%!%?])[ \t]+" .. phrase .. "[%.%,]?[ \t]*", "%1" .. replacement)
+    end
+    replaceDelimitedBreak(newParagraph, "\n\n")
+    replaceDelimitedBreak(newLine, "\n")
+    local bloodPressureCue = "[Bb]lood[ \t]+pressure"
+    local function replaceMisheardParagraphCue(phrase)
+        text = text:gsub(
+            "([%.%!%?])[ \t]+" .. phrase .. "[%.%,]?[ \t]+(" .. bloodPressureCue .. ")",
+            "%1\n\n%2"
+        )
+    end
+    replaceMisheardParagraphCue("[Yy][Oo][Uu][Rr][ \t]+[Pp][Aa][Rr][Aa][Gg][Rr][Aa][Pp][Hh]")
+    replaceMisheardParagraphCue("[Tt][Hh][Ee][ \t]+[Pp][Aa][Rr][Aa][Gg][Rr][Aa][Pp][Hh]")
+
+    -- Unambiguous natural punctuation words may be spoken without the
+    -- legacy prefix. Keep ambiguous clinical nouns (period and colon) behind
+    -- their explicit forms, except for a spoken colon between clock digits.
+    replaceCommand("[Ff][Uu][Ll][Ll][ \t]+[Ss][Tt][Oo][Pp]", ". ")
+    replaceCommand("[Qq][Uu][Ee][Ss][Tt][Ii][Oo][Nn][ \t]+[Mm][Aa][Rr][Kk]", "? ")
+    replaceCommand("[Ee][Xx][Cc][Ll][Aa][Mm][Aa][Tt][Ii][Oo][Nn][ \t]+[Pp][Oo][Ii][Nn][Tt]", "! ")
+    replaceCommand("[Ee][Xx][Cc][Ll][Aa][Mm][Aa][Tt][Ii][Oo][Nn][ \t]+[Mm][Aa][Rr][Kk]", "! ")
+    replaceCommand("[Ss][Ee][Mm][Ii][Cc][Oo][Ll][Oo][Nn]", "; ")
+    -- Shield determiner-led uses of the comma noun before enabling the
+    -- natural command. The control byte is restored before returning.
+    text = text:gsub("([Tt][Hh][Ee][ \t]+)[Cc][Oo][Mm][Mm][Aa]%f[%A]", "%1\29")
+    text = text:gsub("([Aa][ \t]+)[Cc][Oo][Mm][Mm][Aa]%f[%A]", "%1\29")
+    text = text:gsub("([Tt][Hh][Ii][Ss][ \t]+)[Cc][Oo][Mm][Mm][Aa]%f[%A]", "%1\29")
+    text = text:gsub("([Tt][Hh][Aa][Tt][ \t]+)[Cc][Oo][Mm][Mm][Aa]%f[%A]", "%1\29")
+    replaceCommand("[Cc][Oo][Mm][Mm][Aa]", ", ")
+    -- Whisper sometimes renders a spoken "comma" as "common" immediately
+    -- after punctuation. Restrict the correction to that delimiter context
+    -- so ordinary phrases such as "a common medication" remain untouched.
+    text = text:gsub("([,;])[ \t]+[Cc][Oo][Mm][Mm][Oo][Nn][ \t]+", "%1 ")
+    text = text:gsub("(%d)[ \t]+[Cc][Oo][Ll][Oo][Nn][ \t]+(%d)", "%1:%2")
+    text = text:gsub("\29", "comma")
 
     text = text:gsub("[ \t]+([,%.%?!:;])", "%1")
     text = text:gsub("[ \t]+\n", "\n"):gsub("\n[ \t]+", "\n")

@@ -285,9 +285,74 @@ local acceptanceCases = {
         expected = "\n\nBP 120/70 | P 75 | R 16 | SpO2 99% RA",
     },
     {
+        name = "natural capitalized paragraph command after a sentence",
+        input = "History obtained. New paragraph, blood pressure 120 over 70 pulse 75",
+        expected = "History obtained.\n\nBP 120/70 | P 75",
+    },
+    {
+        name = "constrained paragraph misrecognition after a sentence",
+        input = "History obtained. Your paragraph, blood pressure 120 over 70 pulse 75",
+        expected = "History obtained.\n\nBP 120/70 | P 75",
+    },
+    {
+        name = "second constrained paragraph misrecognition after a sentence",
+        input = "History obtained. The paragraph blood pressure 120 over 70 pulse 75",
+        expected = "History obtained.\n\nBP 120/70 | P 75",
+    },
+    {
+        name = "natural capitalized line command after a sentence",
+        input = "SpO2 97% on room air. New line, the patient is diaphoretic.",
+        expected = "SpO2 97% on room air.\nThe patient is diaphoretic.",
+    },
+    {
+        name = "partial vital set omits an undictated respiration field",
+        input = "blood pressure 150 over 90 pulse 60 oxygen saturation 97% on room air",
+        expected = "BP 150/90 | P 60 | SpO2 97% RA",
+    },
+    {
+        name = "natural comma commands",
+        input = "Treatment included aspirin comma nitroglycerin comma and fentanyl.",
+        expected = "Treatment included aspirin, nitroglycerin, and fentanyl.",
+    },
+    {
+        name = "constrained comma misrecognition after delimiter",
+        input = "Treatment included aspirin, common nitroglycerin, and fentanyl.",
+        expected = "Treatment included aspirin, nitroglycerin, and fentanyl.",
+    },
+    {
+        name = "ordinary common adjective is preserved",
+        input = "Aspirin is a common medication.",
+        expected = "Aspirin is a common medication.",
+    },
+    {
+        name = "ordinary comma noun is preserved",
+        input = "The comma was intentionally included.",
+        expected = "The comma was intentionally included.",
+    },
+    {
+        name = "spoken colon between clock digits",
+        input = "The ETA is 14 colon 45.",
+        expected = "The ETA is 14:45.",
+    },
+    {
         name = "ordinary new line phrase is preserved",
         input = "A new line was placed for norepinephrine.",
         expected = "A new line was placed for norepinephrine.",
+    },
+    {
+        name = "ordinary new paragraph phrase is preserved",
+        input = "A new paragraph was added to the report.",
+        expected = "A new paragraph was added to the report.",
+    },
+    {
+        name = "ordinary paragraph noun at the start is preserved",
+        input = "The paragraph was added to the report.",
+        expected = "The paragraph was added to the report.",
+    },
+    {
+        name = "ordinary paragraph noun after a sentence is preserved",
+        input = "The report was edited. The paragraph was retained.",
+        expected = "The report was edited. The paragraph was retained.",
     },
     {
         name = "non-numeric vital-sign prose is preserved",

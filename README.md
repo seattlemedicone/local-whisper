@@ -41,14 +41,17 @@ For a full guide on writing custom commands, see **[docs/VOICE_COMMANDS.md](docs
 
 ### Dictation formatting commands
 
-Formatting phrases use an explicit prefix so ordinary clinical wording is not mistaken for a command:
+Natural formatting phrases work when spoken as a distinct dictation cue:
 
-- `format new line`
-- `format new paragraph`
-- `punctuation comma`, `punctuation colon`, or `punctuation semicolon`
-- `punctuation full stop`, `punctuation question mark`, or `punctuation exclamation mark`
+- `new line`
+- `new paragraph`
+- `comma`, `semicolon`, `full stop`, `question mark`, or `exclamation mark`
+- `colon` between clock digits, such as `14 colon 45`
 
-Whisper still infers ordinary sentence punctuation automatically; use these phrases only when you want to force a specific mark or line break.
+The legacy explicit forms (`format new line`, `format new paragraph`, and
+`punctuation comma`) also remain available. Ambiguous clinical nouns such as
+`period` and `colon` require the `punctuation` prefix unless the colon is between
+clock digits. Whisper still infers ordinary sentence punctuation automatically.
 
 ## Requirements
 
@@ -95,8 +98,8 @@ cd whisper.cpp
 cmake -B build
 cmake --build build -j --config Release
 
-# 3. Download the English final and preview models (~217 MB total)
-./models/download-ggml-model.sh base.en
+# 3. Download the English final and preview models (~541 MB total)
+./models/download-ggml-model.sh small.en
 ./models/download-ggml-model.sh tiny.en
 
 # 4. Start Ollama at login and download local Gemma (~7.2 GB)
@@ -111,7 +114,7 @@ cp ~/local-whisper/hammerspoon/init.lua ~/.hammerspoon/init.lua
 mkdir -p ~/.local-whisper
 cp ~/local-whisper/vocabulary/ems_prompt.txt ~/.local-whisper/prompt
 printf 'en\n' > ~/.local-whisper/lang
-printf 'base.en\n' > ~/.local-whisper/model
+printf 'small.en\n' > ~/.local-whisper/model
 printf 'on\n' > ~/.local-whisper/refine
 printf 'gemma4:e2b\n' > ~/.local-whisper/refine_model
 chmod 700 ~/.local-whisper
@@ -226,7 +229,7 @@ cd ~/whisper.cpp/models
 ./download-ggml-model.sh tiny.en
 ```
 
-The system automatically prefers the smallest available English model (`tiny.en` before `base.en`) for partials while keeping `base.en` for the final transcription.
+The system automatically prefers the smallest available English model (`tiny.en` before `base.en`) for partials while keeping the more accurate `small.en` model for final clinical transcription.
 
 ## Privacy and local data
 

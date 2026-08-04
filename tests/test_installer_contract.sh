@@ -26,7 +26,7 @@ bash -n "$REPO_ROOT/install.sh"
 bash -n "$REPO_ROOT/setup.sh"
 bash -n "$REPO_ROOT/tests/test_refine.sh"
 
-require_text "$REPO_ROOT/install.sh" 'WHISPER_MODEL="base.en"'
+require_text "$REPO_ROOT/install.sh" 'WHISPER_MODEL="small.en"'
 require_text "$REPO_ROOT/install.sh" 'WHISPER_PREVIEW_MODEL="tiny.en"'
 require_text "$REPO_ROOT/install.sh" 'OLLAMA_MODEL="gemma4:e2b"'
 require_text "$REPO_ROOT/install.sh" 'BREW_FORMULAE=(ffmpeg cmake git ollama)'
