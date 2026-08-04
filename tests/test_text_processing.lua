@@ -125,6 +125,11 @@ local acceptanceCases = {
         expected = "BP 132/82 | P 88 | R 20 | SpO2 98% RA | EtCO2 35 mm Hg",
     },
     {
+        name = "abbreviated saturation without percent preserves sentence punctuation",
+        input = "BP 120/80 P 70 R 16 SpO2 98. Condition stable.",
+        expected = "BP 120/80 | P 70 | R 16 | SpO2 98%. Condition stable.",
+    },
+    {
         name = "EtCO2 in ordinary prose does not gain a vital separator",
         input = "The EtCO2 35 mm Hg was recorded.",
         expected = "The EtCO2 35 mm Hg was recorded.",

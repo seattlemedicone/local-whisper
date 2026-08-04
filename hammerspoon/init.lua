@@ -288,13 +288,12 @@ local function applyVitalSignsFormatting(text)
         "[Ss][Pp][Oo]2[ \t]+(" .. saturationValue .. ")%%?"
     text = text:gsub(abbreviatedVitalPattern, function(systolic, diastolic, pulse, respirations, saturation)
         return string.format(
-            "BP %s/%s | P %s | R %s | SpO2 %s%%",
+            "BP %s/%s | P %s | R %s | ",
             systolic,
             diastolic,
             pulse,
-            respirations,
-            saturation
-        )
+            respirations
+        ) .. formatSaturation(saturation)
     end)
 
     local vitalPattern =
