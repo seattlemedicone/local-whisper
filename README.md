@@ -12,7 +12,7 @@ Hold **Right Cmd**, speak, release — text appears at your cursor.
 - **Recording indicator**: Pulsing red dot and elapsed timer in the overlay
 - **Multi-language**: English, Portuguese, and auto-detect with preferred language fallback
 - **App-aware processing**: Auto-capitalizes in most apps, skips in terminals and code editors
-- **LLM refinement** (optional): Clean up dictated text with a local LLM via [Ollama](https://ollama.com) — fixes punctuation, removes filler words, formats numbered lists
+- **Guarded LLM refinement** (optional): Clean up punctuation and approved filler words with a local Gemma model, then reject any response that changes clinical facts before deterministic formatting
 - **Text post-processing**: Remove filler words (um, uh, hmm), clean whitespace
 - **Custom vocabulary**: Provide a prompt file to improve recognition of domain-specific terms
 - **Auto-stop on silence**: Automatically stops recording after 3 seconds of silence
@@ -73,8 +73,9 @@ cd whisper.cpp
 cmake -B build
 cmake --build build -j --config Release
 
-# 3. Download model (~1.5 GB)
-./models/download-ggml-model.sh medium
+# 3. Download the English default and multilingual fallback (~284 MB total)
+./models/download-ggml-model.sh base.en
+./models/download-ggml-model.sh base
 
 # 4. Optional: download tiny model for faster live preview
 ./models/download-ggml-model.sh tiny
@@ -147,10 +148,10 @@ This is passed as `--prompt` to whisper-cli for both partial and final transcrip
 
 ## LLM refinement (optional)
 
-If you have [Ollama](https://ollama.com) installed, you can enable LLM-powered text cleanup. After transcription, the text is sent to a local LLM that fixes punctuation, removes filler words, and formats numbered lists — all on-device.
+If you have [Ollama](https://ollama.com) installed, you can enable local Gemma-powered punctuation cleanup. Every response is validated against the deterministic baseline; changed numbers, percentage markers, words, or word order cause an automatic fallback. Clinical formatting then runs again after accepted cleanup.
 
 1. Install Ollama: `brew install ollama`
-2. Pull a model: `ollama pull gemma3:4b` (small, fast, good at text cleanup)
+2. Pull the edge model: `ollama pull gemma4:e2b`
 3. Start Ollama: `ollama serve` (or `brew services start ollama`)
 4. Toggle in the menu bar or click **refine** in the overlay
 
@@ -161,8 +162,14 @@ Refinement only runs on text longer than 50 characters. Short dictations are ins
 | File | What it does |
 |------|-------------|
 | `~/.local-whisper/refine` | ON/OFF state (also togglable from menu bar / overlay) |
-| `~/.local-whisper/refine_model` | Ollama model to use (default: `gemma3:4b`) |
+| `~/.local-whisper/refine_model` | Ollama model to use (default: `gemma4:e2b`) |
 | `~/.local-whisper/refine_prompt` | Custom instructions for the LLM |
+
+Complete vital signs are canonicalized after refinement as:
+
+`BP 132/82 | P 88 | R 20 | SpO2 98% 2 L/min NC | EtCO2 35 mm Hg`
+
+Omitted fields remain omitted. The formatter never invents a vital-sign value.
 
 ## Faster live preview
 

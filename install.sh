@@ -22,7 +22,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ─── Configurable paths ─────────────────────────────────────────────────────
 WHISPER_CPP_DIR="$HOME/whisper.cpp"
-WHISPER_MODEL="medium"
+WHISPER_MODEL="base.en"
+WHISPER_MULTILINGUAL_MODEL="base"
 HAMMERSPOON_DIR="$HOME/.hammerspoon"
 
 # ─── Preflight ───────────────────────────────────────────────────────────────
@@ -107,22 +108,29 @@ fi
 echo ""
 info "Step 3/6: Downloading whisper models..."
 
-MODEL_FILE="$WHISPER_CPP_DIR/models/ggml-${WHISPER_MODEL}.bin"
-if [[ -f "$MODEL_FILE" ]]; then
-    ok "Model already downloaded: ggml-${WHISPER_MODEL}.bin"
-else
-    info "Downloading ggml-${WHISPER_MODEL}.bin (~1.5 GB)..."
-    cd "$WHISPER_CPP_DIR"
-    bash ./models/download-ggml-model.sh "$WHISPER_MODEL"
-    cd "$SCRIPT_DIR"
-
-    if [[ -f "$MODEL_FILE" ]]; then
-        ok "Model downloaded"
+download_model() {
+    local model="$1"
+    local purpose="$2"
+    local model_file="$WHISPER_CPP_DIR/models/ggml-${model}.bin"
+    if [[ -f "$model_file" ]]; then
+        ok "Model already downloaded: ggml-${model}.bin"
     else
-        error "Model download failed"
-        exit 1
+        info "Downloading ggml-${model}.bin for ${purpose} (~142 MB)..."
+        cd "$WHISPER_CPP_DIR"
+        bash ./models/download-ggml-model.sh "$model"
+        cd "$SCRIPT_DIR"
+
+        if [[ -f "$model_file" ]]; then
+            ok "Model downloaded"
+        else
+            error "Model download failed"
+            exit 1
+        fi
     fi
-fi
+}
+
+download_model "$WHISPER_MODEL" "English dictation"
+download_model "$WHISPER_MULTILINGUAL_MODEL" "Portuguese and auto-detect dictation"
 
 # Also download tiny model for faster live preview (~75 MB)
 TINY_MODEL="$WHISPER_CPP_DIR/models/ggml-tiny.bin"
