@@ -10,9 +10,9 @@ Hold **Right Cmd**, speak, release — text appears at your cursor.
 - **Voice commands**: Say "voice command note buy coffee" to save a note, "voice command open app Safari" to launch apps, and more — fully customizable
 - **Live preview**: Streaming overlay shows partial transcription while you speak
 - **Recording indicator**: Pulsing red dot and elapsed timer in the overlay
-- **Multi-language**: English, Portuguese, and auto-detect with preferred language fallback
+- **English dictation**: English-only Whisper models keep setup simple and responsive
 - **App-aware processing**: Auto-capitalizes in most apps, skips in terminals and code editors
-- **LLM refinement** (optional): Clean up dictated text with a local LLM via [Ollama](https://ollama.com) — fixes punctuation, removes filler words, formats numbered lists
+- **Guarded LLM refinement** (optional): Clean up punctuation and approved filler words with a local Gemma model, then reject any response that changes clinical facts before deterministic formatting
 - **Text post-processing**: Remove filler words (um, uh, hmm), clean whitespace
 - **Custom vocabulary**: Provide a prompt file to improve recognition of domain-specific terms
 - **Auto-stop on silence**: Automatically stops recording after 3 seconds of silence
@@ -39,18 +39,41 @@ Voice commands are fully customizable — edit `~/.hammerspoon/local_whisper_act
 
 For a full guide on writing custom commands, see **[docs/VOICE_COMMANDS.md](docs/VOICE_COMMANDS.md)**.
 
+### Dictation formatting commands
+
+Natural formatting phrases work when spoken as a distinct dictation cue:
+
+- `new line`
+- `new paragraph`
+- `comma`, `semicolon`, `full stop`, `question mark`, or `exclamation mark`
+- `colon` between clock digits, such as `14 colon 45`
+
+The legacy explicit forms (`format new line`, `format new paragraph`, and
+`punctuation comma`) also remain available. Ambiguous clinical nouns such as
+`period` and `colon` require the `punctuation` prefix unless the period follows a
+numeric/lead value or the colon follows a recognized field label or appears
+between clock digits. Whisper still infers ordinary sentence punctuation automatically.
+
 ## Requirements
 
 - macOS (Apple Silicon recommended — tested on M4)
 - [Homebrew](https://brew.sh)
+- About 10 GB of free disk space for Whisper, Ollama, and Gemma
+- An internet connection during installation; transcription and refinement run locally afterward
 
 ## Install
 
 ```bash
-git clone https://github.com/luisalima/local-whisper.git && cd local-whisper && ./install.sh
+git clone https://github.com/SeattleMedicOne/local-whisper.git && cd local-whisper && ./install.sh
 ```
 
-The installer handles everything: Homebrew dependencies, building whisper.cpp, downloading models, and setting up Hammerspoon. It then runs `setup.sh` which walks you through choosing your trigger key, microphone, and granting permissions.
+The installer handles the technical work: Homebrew dependencies, building whisper.cpp, downloading and load-testing both English Whisper models, installing Ollama, downloading and test-running Gemma 4 E2B, starting Ollama automatically at login, enabling guarded refinement, and setting up Hammerspoon. It then walks you through choosing a trigger key, microphone, and granting macOS permissions. Interrupted model downloads are not accepted; re-running the installer safely retries them.
+
+The Gemma download is approximately 7.2 GB and can take several minutes. When installation finishes, verify everything with:
+
+```bash
+./install.sh --verify
+```
 
 To change the trigger key or re-run setup later:
 
@@ -62,8 +85,11 @@ To change the trigger key or re-run setup later:
 <summary>Manual install (if you prefer)</summary>
 
 ```bash
+# Keep the two repositories in known locations
+git clone https://github.com/SeattleMedicOne/local-whisper.git ~/local-whisper
+
 # 1. Dependencies
-brew install ffmpeg cmake git
+brew install ffmpeg cmake git ollama
 brew install --cask hammerspoon
 
 # 2. Build whisper.cpp
@@ -73,14 +99,32 @@ cd whisper.cpp
 cmake -B build
 cmake --build build -j --config Release
 
-# 3. Download model (~1.5 GB)
-./models/download-ggml-model.sh medium
+# 3. Download the English final and preview models (~541 MB total)
+./models/download-ggml-model.sh small.en
+./models/download-ggml-model.sh tiny.en
 
-# 4. Optional: download tiny model for faster live preview
-./models/download-ggml-model.sh tiny
+# 4. Start Ollama at login and download local Gemma (~7.2 GB)
+brew services start ollama
+ollama pull gemma4:e2b
 
 # 5. Copy Hammerspoon config
-cp hammerspoon/init.lua ~/.hammerspoon/init.lua
+mkdir -p ~/.hammerspoon
+cp ~/local-whisper/hammerspoon/init.lua ~/.hammerspoon/init.lua
+
+# 6. Enable guarded Gemma refinement
+mkdir -p ~/.local-whisper
+cp ~/local-whisper/vocabulary/ems_prompt.txt ~/.local-whisper/prompt
+printf 'en\n' > ~/.local-whisper/lang
+printf 'small.en\n' > ~/.local-whisper/model
+printf 'on\n' > ~/.local-whisper/refine
+printf 'gemma4:e2b\n' > ~/.local-whisper/refine_model
+chmod 700 ~/.local-whisper
+chmod 600 ~/.local-whisper/prompt ~/.local-whisper/lang ~/.local-whisper/model ~/.local-whisper/refine ~/.local-whisper/refine_model
+
+# 7. Choose the trigger/microphone, grant permissions, and verify
+cd ~/local-whisper
+./setup.sh
+./install.sh --verify
 ```
 
 </details>
@@ -126,8 +170,8 @@ Then update `AUDIO_DEVICE` in `~/.hammerspoon/init.lua` (e.g., `:0`, `:1`).
 
 A waveform icon in the menu bar shows recording status (turns red when recording). Click it to:
 
-- See current language, model, output mode, enter mode, and LLM refine status
-- Click any setting to cycle it
+- See the English language lock, model, output mode, enter mode, and LLM refine status
+- Click model, output, enter, or refinement settings to change them
 - View and re-paste recent dictations
 - Open the settings overlay
 - Reload voice commands
@@ -137,22 +181,29 @@ All settings are accessible from the menu bar — no keyboard shortcuts needed.
 
 ## Custom vocabulary prompt
 
-Create `~/.local-whisper/prompt` with terms whisper should recognize better:
+The installer creates `~/.local-whisper/prompt` with a compact EMS vocabulary
+curated from current [NLM MeSH](https://www.nlm.nih.gov/databases/download/mesh.html)
+and [NEMSIS v3.5.1](https://nemsis.org/technical-resources/version-3/version-3-data-dictionaries/)
+terminology. The file stays on the Mac and is passed to both the preview and
+final local Whisper models. Existing prompt files are always preserved during
+installation and upgrades.
+
+Edit that file to add agency-specific terms Whisper should recognize better:
 
 ```
-Claude, Hammerspoon, whisper.cpp, ffmpeg, macOS, Lua, Anthropic
+LIFEPAK, LUCAS, tenecteplase, local hospital and unit names
 ```
 
-This is passed as `--prompt` to whisper-cli for both partial and final transcription. Adding your voice command trigger words here improves recognition.
+Keep the most important terms near the end: whisper.cpp uses at most half of
+the model's text context for an initial prompt (typically 224 tokens). Adding
+voice-command trigger words here also improves recognition. Source and reuse
+notes for the bundled prompt are in `vocabulary/SOURCES.md`.
 
-## LLM refinement (optional)
+## Local Gemma refinement
 
-If you have [Ollama](https://ollama.com) installed, you can enable LLM-powered text cleanup. After transcription, the text is sent to a local LLM that fixes punctuation, removes filler words, and formats numbered lists — all on-device.
+The installer enables local Gemma-powered punctuation cleanup through Ollama. Every response is validated against the deterministic baseline; changed numbers, percentage markers, protected symbols, words, or word order cause an automatic fallback. Clinical formatting then runs again after accepted cleanup.
 
-1. Install Ollama: `brew install ollama`
-2. Pull a model: `ollama pull gemma3:4b` (small, fast, good at text cleanup)
-3. Start Ollama: `ollama serve` (or `brew services start ollama`)
-4. Toggle in the menu bar or click **refine** in the overlay
+Ollama runs as a Homebrew service and starts automatically when the user signs in. Refinement can still be toggled from the menu bar or by clicking **refine** in the overlay.
 
 Refinement only runs on text longer than 50 characters. Short dictations are inserted as-is.
 
@@ -161,8 +212,14 @@ Refinement only runs on text longer than 50 characters. Short dictations are ins
 | File | What it does |
 |------|-------------|
 | `~/.local-whisper/refine` | ON/OFF state (also togglable from menu bar / overlay) |
-| `~/.local-whisper/refine_model` | Ollama model to use (default: `gemma3:4b`) |
+| `~/.local-whisper/refine_model` | Ollama model to use (default: `gemma4:e2b`) |
 | `~/.local-whisper/refine_prompt` | Custom instructions for the LLM |
+
+Complete vital signs are canonicalized after refinement as:
+
+`BP 132/82 | P 88 | R 20 | SpO2 98% 2 L/min NC | EtCO2 35 mm Hg`
+
+Omitted fields remain omitted. The formatter never invents a vital-sign value.
 
 ## Faster live preview
 
@@ -170,10 +227,16 @@ By default, partial transcription uses the same model as final transcription. Fo
 
 ```bash
 cd ~/whisper.cpp/models
-./download-ggml-model.sh tiny
+./download-ggml-model.sh tiny.en
 ```
 
-The system automatically picks the smallest available model (tiny > base > small) for partials while keeping your chosen model for the final transcription.
+The system automatically prefers the smallest available English model (`tiny.en` before `base.en`) for partials while keeping the more accurate `small.en` model for final clinical transcription.
+
+## Privacy and local data
+
+Audio, transcripts, recent dictations, temporary model payloads, and machine-specific settings stay outside this repository. Do not commit patient information, recordings, runtime logs, local configuration, credentials, or screenshots containing clinical data. The repository `.gitignore` blocks common audio, transcript, runtime, environment, and local-configuration paths as a secondary safeguard.
+
+Runtime data remains under `~/.local-whisper/` and `$TMPDIR/whisper-dictate/`; downloaded models remain under `~/whisper.cpp/models/` and `~/.ollama/`. These locations are not part of the Git checkout.
 
 ## App-aware text processing
 

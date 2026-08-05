@@ -73,7 +73,15 @@ if [[ -n "$FFMPEG_BIN" ]]; then
     echo ""
     # Parse audio device list from ffmpeg
     DEVICE_OUTPUT=$("$FFMPEG_BIN" -f avfoundation -list_devices true -i "" 2>&1 || true)
-    echo "$DEVICE_OUTPUT" | grep -A 100 "AVFoundation audio devices:" | grep -E "^\[AVFoundation" | head -10
+    DEVICE_LINES=$(printf '%s\n' "$DEVICE_OUTPUT" | awk '
+        /AVFoundation audio devices:/ {in_audio=1; next}
+        in_audio && /^\[AVFoundation/ {print; shown++; if (shown >= 10) exit}
+    ' || true)
+    if [[ -n "$DEVICE_LINES" ]]; then
+        printf '%s\n' "$DEVICE_LINES"
+    else
+        warn "No microphone list was returned; keeping the current/default device is safest"
+    fi
     echo ""
 fi
 
@@ -103,20 +111,22 @@ else
     ok "Audio device: $NEW_DEVICE (unchanged)"
 fi
 
-# ─── Step 3: Permissions ────────────────────────────────────────────────────
+# ─── Step 3: Start Hammerspoon and load the installed config ────────────────
 echo ""
-echo -e "${BOLD}Step 3: macOS permissions${NC}"
+echo -e "${BOLD}Step 3: Start Hammerspoon and load local-whisper${NC}"
 echo ""
 
-ALL_OK=true
-
-# Find hs binary
 HS_BIN=""
-if [[ -x "/usr/local/bin/hs" ]]; then
-    HS_BIN="/usr/local/bin/hs"
-elif [[ -x "/opt/homebrew/bin/hs" ]]; then
-    HS_BIN="/opt/homebrew/bin/hs"
-fi
+for candidate in \
+    "/opt/homebrew/bin/hs" \
+    "/usr/local/bin/hs" \
+    "/Applications/Hammerspoon.app/Contents/Frameworks/hs/hs" \
+    "$HOME/Applications/Hammerspoon.app/Contents/Frameworks/hs/hs"; do
+    if [[ -x "$candidate" ]]; then
+        HS_BIN="$candidate"
+        break
+    fi
+done
 
 # Helper: run command with a timeout (macOS has no `timeout` by default)
 run_with_timeout() {
@@ -125,26 +135,109 @@ run_with_timeout() {
     local pid=$!
     ( sleep "$secs" && kill "$pid" 2>/dev/null ) &
     local watchdog=$!
-    wait "$pid" 2>/dev/null
-    local rc=$?
-    kill "$watchdog" 2>/dev/null
-    wait "$watchdog" 2>/dev/null
+    local rc=0
+    if wait "$pid" 2>/dev/null; then
+        rc=0
+    else
+        rc=$?
+    fi
+    kill "$watchdog" 2>/dev/null || true
+    wait "$watchdog" 2>/dev/null || true
     return $rc
 }
 
+restart_hammerspoon_app() {
+    info "Restarting Hammerspoon to load the installed configuration..."
+    osascript -e 'tell application "Hammerspoon" to quit' >/dev/null 2>&1 || true
+    for _ in {1..10}; do
+        pgrep -q Hammerspoon || break
+        sleep 1
+    done
+    if pgrep -q Hammerspoon; then
+        killall Hammerspoon >/dev/null 2>&1 || true
+        for _ in {1..10}; do
+            pgrep -q Hammerspoon || break
+            sleep 1
+        done
+    fi
+    open -a "Hammerspoon"
+    for _ in {1..10}; do
+        pgrep -q Hammerspoon && return 0
+        sleep 1
+    done
+    return 1
+}
+
+if ! pgrep -q Hammerspoon; then
+    info "Launching Hammerspoon..."
+    open -a "Hammerspoon"
+    for _ in {1..10}; do
+        pgrep -q Hammerspoon && break
+        sleep 1
+    done
+fi
+
+if ! pgrep -q Hammerspoon; then
+    error "Hammerspoon did not launch. Open it from Applications, then re-run ./install.sh."
+    exit 1
+fi
+
+if [[ -z "$HS_BIN" ]]; then
+    error "Hammerspoon's command-line helper is missing from the application bundle."
+    error "Reinstall Hammerspoon with: brew reinstall --cask hammerspoon"
+    exit 1
+fi
+
+# Reloading intentionally invalidates the IPC request that triggered it, so the
+# helper can report a transport error even when reload succeeded. The runtime
+# probe below is the authoritative success check.
+run_with_timeout 5 "$HS_BIN" -n -t 5 -c 'hs.reload()' >/dev/null 2>&1 || true
+sleep 2
+
+runtime_loaded() {
+    run_with_timeout 5 "$HS_BIN" -n -t 5 -c \
+        'print(WhisperTextProcessing ~= nil and WhisperInstallationDiagnostics ~= nil)' \
+        2>/dev/null | grep -Fxq "true"
+}
+
+if ! runtime_loaded; then
+    warn "Hammerspoon did not accept the CLI reload; restarting the app once."
+    if ! restart_hammerspoon_app; then
+        error "Hammerspoon could not be restarted. Open it from Applications, then re-run ./install.sh."
+        exit 1
+    fi
+    sleep 2
+fi
+
+if runtime_loaded; then
+    ok "Hammerspoon config loaded; local-whisper runtime is active"
+else
+    error "local-whisper did not load. Open Hammerspoon > Console, then re-run ./install.sh."
+    exit 1
+fi
+
+# ─── Step 4: Permissions ────────────────────────────────────────────────────
+echo ""
+echo -e "${BOLD}Step 4: macOS permissions${NC}"
+echo ""
+
 check_accessibility() {
-    [[ -n "$HS_BIN" ]] && run_with_timeout 5 "$HS_BIN" -c "return hs.accessibilityState()" 2>/dev/null | grep -q "true"
+    run_with_timeout 5 "$HS_BIN" -n -t 5 -c 'print(hs.accessibilityState())' 2>/dev/null |
+        grep -Fxq "true"
 }
 
 check_microphone() {
-    [[ -n "$FFMPEG_BIN" ]] && run_with_timeout 5 "$FFMPEG_BIN" -f avfoundation -i ":default" -t 0.1 -f null - 2>/dev/null
+    run_with_timeout 10 "$HS_BIN" -n -t 10 -c \
+        'print(WhisperInstallationDiagnostics ~= nil and WhisperInstallationDiagnostics.microphone())' \
+        2>/dev/null | grep -Fxq "true"
 }
+
+PERMISSIONS_OK=true
 
 # ── Accessibility (Hammerspoon) ──
 if check_accessibility; then
     ok "Accessibility: granted (Hammerspoon)"
 else
-    ALL_OK=false
     warn "Accessibility: Hammerspoon needs Accessibility permission"
     echo -e "  Enable ${BOLD}Hammerspoon${NC} in System Settings > Privacy & Security > Accessibility"
     open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility" 2>/dev/null || true
@@ -153,7 +246,8 @@ else
     if check_accessibility; then
         ok "Accessibility: granted"
     else
-        warn "Accessibility: could not verify — make sure Hammerspoon is enabled"
+        error "Accessibility permission is still unavailable"
+        PERMISSIONS_OK=false
     fi
 fi
 
@@ -161,7 +255,6 @@ fi
 if check_microphone; then
     ok "Microphone: granted"
 else
-    ALL_OK=false
     warn "Microphone: Hammerspoon needs Microphone permission"
     echo -e "  Enable ${BOLD}Hammerspoon${NC} in System Settings > Privacy & Security > Microphone"
     open "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone" 2>/dev/null || true
@@ -170,57 +263,16 @@ else
     if check_microphone; then
         ok "Microphone: granted"
     else
-        warn "Microphone: could not verify — you may need to restart Hammerspoon"
+        error "Microphone access is still unavailable to Hammerspoon"
+        PERMISSIONS_OK=false
     fi
 fi
 
-if [[ "$ALL_OK" == true ]]; then
-    ok "All permissions already granted"
+if [[ "$PERMISSIONS_OK" != true ]]; then
+    error "Setup is incomplete. Grant both permissions, then re-run ./install.sh."
+    exit 1
 fi
-
-# ─── Step 4: Hammerspoon CLI ────────────────────────────────────────────────
-echo ""
-echo -e "${BOLD}Step 4: Hammerspoon CLI & reload${NC}"
-
-# Launch Hammerspoon if not running
-if ! pgrep -q Hammerspoon; then
-    info "Launching Hammerspoon..."
-    open -a "Hammerspoon"
-    sleep 2
-fi
-
-if [[ -x "/usr/local/bin/hs" ]] || [[ -x "/opt/homebrew/bin/hs" ]]; then
-    ok "Hammerspoon CLI (hs) already installed"
-else
-    warn "Hammerspoon CLI (hs) not found."
-    echo ""
-    echo -e "  Open the Hammerspoon console (click menu bar icon > Console) and run:"
-    echo ""
-    echo -e "    ${BOLD}hs.ipc.cliInstall()${NC}"
-    echo ""
-    read -r -p "  Press Enter when done..."
-
-    if [[ -x "/usr/local/bin/hs" ]] || [[ -x "/opt/homebrew/bin/hs" ]]; then
-        ok "Hammerspoon CLI installed"
-    else
-        warn "hs not found — you can run hs.ipc.cliInstall() later from the Hammerspoon console"
-    fi
-fi
-
-# Re-find hs after possible install
-HS_BIN=""
-if [[ -x "/usr/local/bin/hs" ]]; then
-    HS_BIN="/usr/local/bin/hs"
-elif [[ -x "/opt/homebrew/bin/hs" ]]; then
-    HS_BIN="/opt/homebrew/bin/hs"
-fi
-
-# Reload Hammerspoon config
-if [[ -n "$HS_BIN" ]]; then
-    run_with_timeout 5 "$HS_BIN" -c "hs.reload()" 2>/dev/null && ok "Hammerspoon config reloaded" || warn "Could not reload — click the Hammerspoon menu bar icon > Reload Config"
-else
-    warn "Reload Hammerspoon manually: click menu bar icon > Reload Config"
-fi
+ok "Accessibility and Microphone permissions verified"
 
 # ─── Done ────────────────────────────────────────────────────────────────────
 echo ""
